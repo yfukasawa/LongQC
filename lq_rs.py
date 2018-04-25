@@ -12,15 +12,12 @@ def load_sts_csv(file_path):
     df = pd.read_table(file_path, sep=',')
     return df
 
-
 def gen_boxplot_length_vs_score(df, interval):
     df['Interval'] = np.floor((df['HQRegionEnd'].values - df['HQRegionStart'].values)/interval)
     return df.boxplot(column='ReadScore', by='Interval', sym='+', rot=90, figsize=(int(max(df['Interval'])/5+0.5),6))
 
-
 def gen_hist_tot_vs_hq_length(df):
     pass
-
 
 def gen_snr_plots(df):
     # https://stackoverflow.com/questions/9767241/setting-a-relative-frequency-in-a-matplotlib-histogram
@@ -37,7 +34,6 @@ def gen_snr_plots(df):
     peak_A = ls[np.argmax(kernel_A(ls))]
   
     plt.show()
-
 
 def parse_sts_xml(filepath, ns=None):
     tree = et.parse(filepath)
@@ -60,7 +56,6 @@ def parse_sts_xml(filepath, ns=None):
 
     return [p0, p1, p2]
 
-
 def get_sts_xml_path(d, logger):
     if not os.path.isdir(d):
         logger.info("%s is not a dir" % d)
@@ -77,7 +72,6 @@ def get_sts_xml_path(d, logger):
 
     return None
 
-
 def get_sts_csv_path(d, logger):
     if not os.path.isdir(d):
         logger.info("%s is not a dir" % d)
@@ -93,7 +87,6 @@ def get_sts_csv_path(d, logger):
             return p
 
     return None
-
 
 def run_platformqc(data_path, output_path, b_width = 1000):
     log_path  = os.path.join(output_path, "log", "log_rs2_platformqc.txt")
