@@ -101,10 +101,8 @@ def sample_random_fastq(fn, param, s_seed=7):
         for line in fq:
             if(n_seqs%100000 == 0):
                 h = np.random.uniform(size = 100000)
-            n_seqs += 1
             name = line.strip()[1:]
             seq  = next(fq).strip()
-            n_bases += len(seq)
             next(fq)
             qual = next(fq).strip()
             if num:
@@ -113,9 +111,13 @@ def sample_random_fastq(fn, param, s_seed=7):
                 else:
                     d = int(h[(n_seqs-1)%100000]*n_seqs)
                 if(d < num):
+                    n_bases += len(seq)
+                    n_seqs += 1
                     reads[d] = (name, seq, qual)
             elif( h[(n_seqs-1)%100000] < frac):
-                    reads.append((name, seq, qual))
+                n_bases += len(seq)
+                n_seqs += 1
+                reads.append((name, seq, qual))
         return (reads, n_seqs, n_bases)
 
 
