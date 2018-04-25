@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 
 #from scipy.stats   import gumbel_r
 from sklearn  import mixture
-from lq_utils import eprint
 from operator import itemgetter
 
 """
@@ -69,7 +68,7 @@ class LqCoverage:
     COVERAGE_COLUMN = 4
     QV_COLUMN = 5
 
-    def __init__(self, table_path):
+    def __init__(self, table_path, logger=None):
         self.df = pd.read_table(table_path, sep='\t', header=None)
         self.min_lambda = None
         self.max_lambda = None
@@ -79,20 +78,32 @@ class LqCoverage:
         self.model_main_comp = None
         self.mean_main = None
         self.cov_main  = None
+        if logger:
+            self.logger = logger
+        else:
+            self.logger = logging.getLogger(__name__)
+            logger.setLevel(logging.INFO)
+            sh = logging.StreamHandler()
+            formatter = logging.Formatter('%(module)s:%(asctime)s:%(lineno)d:%(levelname)s:%(message)s')
+            sh.setFormatter(formatter)
+            logger.addHandler(sh)
+        self.logger.info("Estimating coverage distribution..")
+        self.__est_coverage()
+        self.logger.info("Estimation of coverage distribution finished.")
 
     def __est_coverage(self):
         self.unmapped_frac_trimmed   = len(self.df[LqCoverage.COVERAGE_COLUMN].values[np.where(self.df[LqCoverage.COVERAGE_COLUMN] == 0.0)]) \
                                        / len(self.df[LqCoverage.COVERAGE_COLUMN])
         self.unmapped_frac_untrimmed = len(self.df[LqCoverage.N_MBASE_COLUMN].values[np.where(self.df[LqCoverage.N_MBASE_COLUMN] == 0.0)]) \
                                        / len(self.df[LqCoverage.QLENGTH_COLUMN])
-        print(self.unmapped_frac_untrimmed, self.unmapped_frac_trimmed)
+        self.logger.info("Unmapped fraction: %.3f (naive), %3.f (coverage considered)" % (self.unmapped_frac_untrimmed, self.unmapped_frac_trimmed))
 
         if self.unmapped_frac_trimmed >= LqCoverage.UNMAPPED_FRACTION_THRESHOLD:
-            print("Warning: the fraction of zero coverage read is high,", self.unmapped_frac_trimmed)
+            self.logger.warning("The fraction of zero coverage read is high,", self.unmapped_frac_trimmed)
             self.min_lambda = -1 * math.log(self.unmapped_frac_trimmed - LqCoverage.UNMAPPED_FRACTION_PARAM_MIN)
             self.max_lambda = -1 * math.log(self.unmapped_frac_trimmed - LqCoverage.UNMAPPED_FRACTION_PARAM_MAX)
-            print("If and only if the data is healthy, very rough estimated coverage range is",
-                  str(self.min_lambda), "-", str(self.max_lambda)+".")
+            range_str = str(self.min_lambda) + "-" + str(self.max_lambda)
+            self.logger.warning("If and only if the data is healthy, very rough estimated coverage range is %s." % range_str)
 
         self.model_main_comp = self.__est_coverage_dist_gmm(k_i=2)
         self.model = self.model_main_comp[0]
@@ -100,9 +111,6 @@ class LqCoverage:
         self.cov_main  = self.model_main_comp[2]
 
     def plot_coverage_dist(self, fp=None):
-
-        self.__est_coverage()
-
         gmm_x = np.linspace(0, self.mean_main+4*np.sqrt(self.cov_main), 5000)
         gmm_y = np.exp(self.model.score_samples(gmm_x.reshape(-1,1)))
         plt.grid(True)
@@ -124,10 +132,10 @@ class LqCoverage:
                      alpha=0.2,
                      bins=np.arange(0,
                                     self.mean_main + 10 * np.sqrt(self.cov_main) + self.mean_main / 10,
-                                    mean_main / 10),
+                                    self.mean_main / 10),
                      color='red',
                      normed=True)
-            print(self.model_main_comp[1:])
+            self.logger.debug(self.model_main_comp[1:])
 
         plt.hist((self.df[LqCoverage.N_MBASE_COLUMN] / self.df[LqCoverage.QLENGTH_COLUMN]),
                  alpha=0.2,
@@ -144,29 +152,49 @@ class LqCoverage:
 
         plt.legend(bbox_to_anchor=(1,1), loc='upper right', borderaxespad=1)
         if fp:
-            pass
+            plt.savefig(fp, bbox_inches="tight")
         else:
             plt.show()
         plt.close()
 
-    def plot_unmapped_frac_terminal(self, fp=None):
+    def plot_unmapped_frac_terminal(self, fp=None, adp5_pos=None, adp3_pos=None, x_max=145):
+        plt.figure(figsize=(12,5))
         plt.subplot(1,2,1)
         t5l, t3l, il = self.__region_analysis(3, 1)
-        print("finished parsing")
-        plt.hist(t5l, alpha=0.2, bins=np.arange(0,145,5), color='green')
-        plt.xlim(0,145)
-        #plt.axvline(x=61, linestyle='dashed', linewidth=2, color='red', alpha=0.8) # y-top of nanopore 1d
-        #plt.axvline(x=120, linestyle='dashed', linewidth=2, color='red', alpha=0.8) # top of nanopore 1d2. 59 + 61
-        plt.axvline(x=45, linestyle='dashed', linewidth=2, color='red', alpha=0.8) # pacbio
+        self.logger.info("Coordinates of coverage analysis were parsed.")
+
+        plt.hist(t5l, alpha=0.2, bins=np.arange(0, x_max, 5), color='green')
+        plt.xlim(0,x_max)
+        plt.xlabel('Distance from 5\' terminal')
+        plt.ylabel('Frequency')
+        ymin5, ymax5 = plt.gca().get_ylim()
 
         plt.subplot(1,2,2)
-        plt.hist(t3l, alpha=0.2, bins=np.arange(0, 145, 5), color='orange')
-        plt.xlim(145,0)
-        #plt.axvline(x=22, linestyle='dashed', linewidth=2, color='red', alpha=0.8) # y-bottom of nanopore 1d
-        #plt.axvline(x=86, linestyle='dashed', linewidth=2, color='red', alpha=0.8) # bottom of nanopore 1d2. 22 + 64
-        plt.axvline(x=45, linestyle='dashed', linewidth=2, color='red', alpha=0.8) # pacbio
+        plt.hist(t3l, alpha=0.2, bins=np.arange(0, x_max, 5), color='orange')
+        plt.xlim(x_max, 0)
+        plt.xlabel('Distance from 3\' terminal')
+        plt.ylabel('Frequency')
+        ymin3, ymax3 = plt.gca().get_ylim()
+
+        if ymax5 > ymax3:
+            ax = plt.subplot(122)
+            ax.set_ylim(0, ymax5)
+            ymax = ymax5
+        else:
+            ax = plt.subplot(121)
+            ax.set_ylim(0, ymax3)
+            ymax = ymax3
+        if adp5_pos:
+            #adp5_pos -> 45 for pb, 61 for 1d, and 120 for 1d2.
+            plt.axvline(x=adp5_pos, linestyle='dashed', linewidth=2, color='red', alpha=0.8) # pacbio
+            plt.text(adp5_pos, ymax*0.85, r'Length of the adapter')
+        if adp3_pos:
+            #adp3_pos -> 45 for pb, 22 for 1d, and 86 for 1d2.
+            plt.axvline(x=adp3_pos, linestyle='dashed', linewidth=2, color='red', alpha=0.8) # pacbio
+            plt.text(adp3_pos, ymax*0.85, r'Length of the adapter')
+
         if fp:
-            pass
+            plt.savefig(fp, bbox_inches="tight")
         else:
             plt.show()
         plt.close()
@@ -188,7 +216,7 @@ class LqCoverage:
         plt.ylim(0, ymax)
         plt.ylabel('Averaged QV')
         if fp:
-            pass
+            plt.savefig(fp, bbox_inches="tight")
         else:
             plt.show()
         plt.close()
@@ -206,7 +234,7 @@ class LqCoverage:
         plt.suptitle("")
         #plt.savefig('Box_plot_quality.png')
         if fp:
-            pass
+            plt.savefig(fp, bbox_inches="tight")
         else:
             plt.show()
         plt.close()
@@ -255,10 +283,9 @@ class LqCoverage:
             ratio = np.array([e for i in m_f.means_ for e in i])/np.array([e[0] for i in m_f.covariances_ for e in i])
             weird_components = [i for i, v in enumerate(ratio) if v > 1] # sqrt(mu) > sigma
 
-            #print("debug", weird_components)
-            print("debug", order)
-            print("debug", [e for i in m_f.means_ for e in i], "k =", k)
-            print("debug", [e[0] for inner in m_f.covariances_ for e in inner], "k =", k)
+            self.logger.debug("The order of componens", order)
+            #self.logger.debug("Means of components: %s k=%d" % (" ".join([e for i in m_f.means_ for e in i]), k))
+            #self.logger.debug("Covariances of components: %s k=%d" % (" ".join([e[0] for inner in m_f.covariances_ for e in inner]), k))
 
             _max = -1*np.inf
             for i,v in enumerate(order):
@@ -305,7 +332,7 @@ class LqCoverage:
             elif(len(regs) == 1):
                 (s, e) = regs[0]
             else:
-                eprint("Error: the number of region is weird." )
+                self.logger.warning("The number of region is weird." )
 
             if s != None and e != None:
                 t3 = int(ql) - int(e)
@@ -319,17 +346,10 @@ class LqCoverage:
 if __name__ == "__main__":
 
     lc = LqCoverage("/home/fukasay/temp/rel3-3306352129_k12w5m40_ava_sub10k_coverage_minimap2mod_oh2000_r40_minovlp1000.txt")
-    lc.plot_coverage_dist()
-    #lc.plot_unmapped_frac_terminal()
+    #lc.plot_coverage_dist()
+    lc.plot_unmapped_frac_terminal(fp="/dev/null/", adp5_pos=61, adp3_pos=None)
     #lc.plot_qscore_dist()
-    lc.plot_length_vs_coverage()
-
-    """
-    if unmapped_frac_trimmed > unmapped_fraction_threshold:
-        pass
-
-
-    """
+    #lc.plot_length_vs_coverage()
 
     """
     # internal break. experimental.
@@ -339,5 +359,3 @@ if __name__ == "__main__":
     plt.show()
     """
 
-    """
-    """
