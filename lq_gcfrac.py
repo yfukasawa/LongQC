@@ -1,11 +1,9 @@
-import time
 import random
-
 import matplotlib.pyplot  as plt
 import numpy              as np
 
 from scipy.stats import gaussian_kde
-from lq_utils    import time_taken, parse_fastq
+from lq_utils    import parse_fastq
 
 def calc_masked_chunk_read_gc_frac(reads, chunk_size=300, th=0.2):
     tot     = 0
