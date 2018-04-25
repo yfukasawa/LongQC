@@ -16,26 +16,22 @@
     Bugs: Please contact yoshinori.fukasawa@kaust.edu.sa
 '''
 
-import sys, os, logging, json
-import argparse
+import sys, os, logging, json, argparse, shlex
 import matplotlib.pyplot as plt
-import diptest
+import numpy             as np
 from scipy.stats import gamma
-import numpy as np
-
-import lq_gamma
-from lq_utils  import parse_fastq, parse_fasta, get_N50, rgb
-from lq_adapt  import cut_adapter
-from lq_gcfrac import plot_unmasked_gc_frac
-
+from lq_gamma    import estimate_gamma_dist_scipy
+from lq_utils    import parse_fastq, parse_fasta, get_N50, rgb, sample_random_fastq, write_fastq
+from lq_adapt    import cut_adapter
+from lq_gcfrac   import plot_unmasked_gc_frac
+from lq_exec     import LqExec
+from lq_coverage import LqCoverage
 
 def command_run(args):
     print(args)
 
-
 def command_help(args):
     print(parser.parse_args([args.command, '--help']))
-
 
 def plot_length_dist(fig_path, lengths, g_a, g_b, _max, _mean, _n50, b_width = 1000):
     
@@ -68,27 +64,34 @@ def plot_length_dist(fig_path, lengths, g_a, g_b, _max, _mean, _n50, b_width = 1
     #plt.show()
     plt.close()
 
-
 def main(args):
     if hasattr(args, 'handler'):
         args.handler(args)
     else:
         parser.print_help()
 
-
 def command_sample(args):
     if args.suf:
+        cov_path    = os.path.join(args.out, "analysis", "minimap2", "coverage_out_" + args.suf + ".txt")
+        cov_path_e  = os.path.join(args.out, "analysis", "minimap2", "coverage_err_" + args.suf + ".txt")
+        sample_path = os.path.join(args.out, "analysis", "subsample_" + args.suf + ".fastq")
         log_path    = os.path.join(args.out, "log", "log_longQC_sampleqc_" + args.suf + ".txt")
         fig_path    = os.path.join(args.out, "fig", "fig_longQC_sampleqc_length_" + args.suf + ".png")
         fig_path_gc = os.path.join(args.out, "fig", "fig_longQC_sampleqc_gcfrac_" + args.suf + ".png")
         json_path   = os.path.join(args.out, "QC_vals_longQC_sampleqc_" + args.suf + ".json")
     else:
+        cov_path    = os.path.join(args.out, "analysis", "minimap2", "coverage_out.txt")
+        cov_path_e  = os.path.join(args.out, "analysis", "minimap2", "coverage_err.txt")
+        sample_path = os.path.join(args.out, "analysis", "subsample.fastq")
         log_path    = os.path.join(args.out, "log", "log_longQC_sampleqc.txt")
         fig_path    = os.path.join(args.out, "fig", "fig_longQC_sampleqc_length.png")
         fig_path_gc = os.path.join(args.out, "fig", "fig_longQC_sampleqc_gcfrac.png")
         json_path   = os.path.join(args.out, "QC_vals_longQC_sampleqc.json")
 
     # output_path will be made too.
+    if not os.path.isdir(os.path.join(args.out, "analysis", "minimap2")):
+        os.makedirs(os.path.join(args.out, "analysis", "minimap2"), exist_ok=True)
+
     if not os.path.isdir(os.path.join(args.out, "log")):
         os.makedirs(os.path.join(args.out, "log"), exist_ok=True)
 
@@ -109,9 +112,18 @@ def command_sample(args):
     logger.addHandler(fh)
     #####################
 
-
     (reads, n_seqs, n_bases) = parse_fastq(args.fastq)
     logger.info('fastq file parsing was finished. #seqs:%d, #bases: %d' % (n_seqs, n_bases))
+    (sreads, s_n_seqs, s_n_bases) = sample_random_fastq(args.fastq, args.nsample)
+    logger.info('sequence sampling finished. #seqs:%d, #bases: %d, #n_sample: %f' % (s_n_seqs, s_n_bases, float(args.nsample)))
+    write_fastq(sample_path, sreads)
+
+    # asynchronized
+    le = LqExec("/home/fukasay/Projects/minimap2_mod/minimap2-lite", logger=logger)
+    le_args = shlex.split("-Y -t 50 -l 0 -c 7 %s %s" % (sample_path, args.fastq))
+    le.exec(*le_args, out=cov_path, err=cov_path_e)
+
+    logger.info("Overlap computation started. Process is %d" % le.get_pid())
 
     lengths   = []
     tobe_json = {}
@@ -129,7 +141,7 @@ def command_sample(args):
     """
 
     # length distribution. a ~= 1.0 is usual (exponential dist).
-    (a, b) = lq_gamma.estimate_gamma_dist_scipy(lengths, logger)
+    (a, b) = estimate_gamma_dist_scipy(lengths, logger)
     
     throughput = np.sum(lengths)
     longest    = np.max(lengths)
@@ -162,8 +174,22 @@ def command_sample(args):
     plot_unmasked_gc_frac(fig_path_gc, reads, logger)
     logger.info("Genarated the sample gc fraction plot.")
 
-    logger.info("Finished all processes.")
+    # here wait until the minimap procerss finishes
+    while True:
+        if le.get_poll() is not None:
+            logger.info("Process of %s terminated." % le.get_bin_path)
+            break
 
+    logger.info("Overlap computation finished.")
+
+    # execute minimap2_coverage
+    lc = LqCoverage(cov_path, logger)
+    lc.plot_coverage_dist()
+    lc.plot_unmapped_frac_terminal()
+    lc.plot_qscore_dist()
+    lc.plot_length_vs_coverage()
+
+    logger.info("Finished all processes.")
 
 # stand alone
 if __name__ == "__main__":
@@ -190,6 +216,7 @@ if __name__ == "__main__":
     parser_sample.add_argument('--ont', help='asseses a sample data from ONT sequencers', dest = 'ont', action = 'store_true', default = None)
     parser_sample.add_argument('--adapter_5', help='Specify adapter sequence for 5\'', dest = 'adp5', default = None)
     parser_sample.add_argument('--adapter_3', help='Specify adapter sequence for 3\'', dest = 'adp5', default = None)
+    parser_sample.add_argument('--n_sample', help='Specify the number/fraction of sequences for sampling.', dest = 'nsample', default = 10000)
     parser_sample.add_argument('-s', '--suffix', help='Suffix for each output file.', dest = 'suf', default = None)
     parser_sample.add_argument('-o', '--output', help='Path for output directory', dest = 'out', default = None)
     parser_sample.add_argument('fastq', help='input in the Fastq format', type=str)
