@@ -1,4 +1,4 @@
-import math
+import math, logging
 import numpy             as np
 import pandas            as pd
 import scipy.stats       as st
@@ -82,24 +82,25 @@ class LqCoverage:
             self.logger = logger
         else:
             self.logger = logging.getLogger(__name__)
-            logger.setLevel(logging.INFO)
+            self.logger.setLevel(logging.INFO)
             sh = logging.StreamHandler()
             formatter = logging.Formatter('%(module)s:%(asctime)s:%(lineno)d:%(levelname)s:%(message)s')
             sh.setFormatter(formatter)
-            logger.addHandler(sh)
+            self.logger.addHandler(sh)
+
         self.logger.info("Estimating coverage distribution..")
         self.__est_coverage()
         self.logger.info("Estimation of coverage distribution finished.")
 
     def __est_coverage(self):
         self.unmapped_frac_trimmed   = len(self.df[LqCoverage.COVERAGE_COLUMN].values[np.where(self.df[LqCoverage.COVERAGE_COLUMN] == 0.0)]) \
-                                       / len(self.df[LqCoverage.COVERAGE_COLUMN])
+                                       / len(self.df[LqCoverage.QLENGTH_COLUMN])
         self.unmapped_frac_untrimmed = len(self.df[LqCoverage.N_MBASE_COLUMN].values[np.where(self.df[LqCoverage.N_MBASE_COLUMN] == 0.0)]) \
                                        / len(self.df[LqCoverage.QLENGTH_COLUMN])
-        self.logger.info("Unmapped fraction: %.3f (naive), %3.f (coverage considered)" % (self.unmapped_frac_untrimmed, self.unmapped_frac_trimmed))
+        self.logger.info("Unmapped fraction: %.3f (naive), %.3f (coverage considered)" % (self.unmapped_frac_untrimmed, self.unmapped_frac_trimmed))
 
         if self.unmapped_frac_trimmed >= LqCoverage.UNMAPPED_FRACTION_THRESHOLD:
-            self.logger.warning("The fraction of zero coverage read is high,", self.unmapped_frac_trimmed)
+            self.logger.warning("The fraction of zero coverage read is high %.3f" % self.unmapped_frac_trimmed)
             self.min_lambda = -1 * math.log(self.unmapped_frac_trimmed - LqCoverage.UNMAPPED_FRACTION_PARAM_MIN)
             self.max_lambda = -1 * math.log(self.unmapped_frac_trimmed - LqCoverage.UNMAPPED_FRACTION_PARAM_MAX)
             range_str = str(self.min_lambda) + "-" + str(self.max_lambda)
@@ -228,6 +229,7 @@ class LqCoverage:
         boundary_reliable_bin = np.where(bin_size >= 50)[0].max()
         xmin, xmax = plt.gca().get_xlim()
         plt.axvspan(boundary_reliable_bin+1.5, xmax+1, facecolor='gray', alpha=0.1)
+        #plt.axhline(y=self.mean_main, linestyle='dashed', linewidth=2, color='red', alpha=0.2) # a bit misleading in case skewed dist
         plt.title("Read coverage over different length reads")
         plt.xticks(np.arange(xmax+1), [int(i) for i in np.arange(xmax+1)*interval])
         plt.ylim(0, self.mean_main + 20*np.sqrt(self.cov_main))
@@ -249,8 +251,6 @@ class LqCoverage:
 
     # est_coverage_dist sometimes return weird mu, maybe due to local maxima, so
     #  below method is an ugly working solution.
-
-    # df       : DataFrame of pandas
     # nbs      : the number of bootstrap iteration
     # k_i      : initial value for the parameter for the number of component in GMM.
     # k_max    : maximum value for the parameter for the number of component in GMM.
@@ -283,9 +283,9 @@ class LqCoverage:
             ratio = np.array([e for i in m_f.means_ for e in i])/np.array([e[0] for i in m_f.covariances_ for e in i])
             weird_components = [i for i, v in enumerate(ratio) if v > 1] # sqrt(mu) > sigma
 
-            self.logger.debug("The order of componens", order)
-            #self.logger.debug("Means of components: %s k=%d" % (" ".join([e for i in m_f.means_ for e in i]), k))
-            #self.logger.debug("Covariances of components: %s k=%d" % (" ".join([e[0] for inner in m_f.covariances_ for e in inner]), k))
+            self.logger.info("The order of componens %s " % " ".join([str(v) for v in order]) )
+            self.logger.info("Means of components: %s k=%d" % (" ".join([str(e) for i in m_f.means_ for e in i]), k))
+            self.logger.info("Covariances of components: %s k=%d" % (" ".join([str(e[0]) for inner in m_f.covariances_ for e in inner]), k))
 
             _max = -1*np.inf
             for i,v in enumerate(order):
@@ -345,11 +345,11 @@ class LqCoverage:
 # test
 if __name__ == "__main__":
 
-    lc = LqCoverage("/home/fukasay/temp/rel3-3306352129_k12w5m40_ava_sub10k_coverage_minimap2mod_oh2000_r40_minovlp1000.txt")
-    #lc.plot_coverage_dist()
-    lc.plot_unmapped_frac_terminal(fp="/dev/null/", adp5_pos=61, adp3_pos=None)
-    #lc.plot_qscore_dist()
-    #lc.plot_length_vs_coverage()
+    lc = LqCoverage("/home/fukasay/temp/ont_ecoli_k12w5m40_oh2000_r40_min1000_debug.txt")
+    lc.plot_coverage_dist()
+    lc.plot_unmapped_frac_terminal(adp5_pos=61, adp3_pos=None)
+    lc.plot_qscore_dist()
+    lc.plot_length_vs_coverage()
 
     """
     # internal break. experimental.
