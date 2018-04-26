@@ -8,7 +8,6 @@ def rgb(r,g,b):
 
     return [ r/255, g/255, b/255 ]
 
-
 def get_N50(vals):
     t = np.array(vals).sum()/2
     cnt = 0
@@ -27,20 +26,9 @@ def get_NXX(vals, target=90):
         cnt += x
         if cnt >= t: return x
 
-
-# copied from iPipe. Thanks, Issaac.
-def time_taken( begin_time, end_time ):
-   run_time    = end_time - begin_time
-   num_minutes = run_time    /   60             ; residue_secs    = run_time    %   60
-   num_hours   = num_minutes /   60             ; residue_minutes = num_minutes %   60
-   num_days    = num_hours   /   24             ; residue_hours   = num_hours   %   24
-   return( num_days, residue_hours, residue_minutes, residue_secs )
-
-
 # https://stackoverflow.com/questions/5574702/how-to-print-to-stderr-in-python
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
-
 
 def parse_fastq(fn):
     reads   = []
@@ -57,7 +45,6 @@ def parse_fastq(fn):
             reads.append( (name, seq, qual) )
     return (reads, n_seqs, n_bases)
 
-
 def parse_fasta(fn):
     reads = []
     n_seqs  = 0
@@ -71,7 +58,6 @@ def parse_fasta(fn):
             reads.append( (name, seq) )
     return (reads, n_seqs, n_bases)
 
-
 def write_fastq(fn, reads):
     if(os.path.isfile(fn)):
         eprint("Error: the file %s already exists." % fn)
@@ -81,13 +67,13 @@ def write_fastq(fn, reads):
         for r in reads:
             fq.write("@%s\n%s\n+\n%s\n" % r)
 
-
 # follow the logic flow of seqtk
 def sample_random_fastq(fn, param, s_seed=7):
     frac    = 0.
     num     = 0
     n_seqs  = 0
-    n_bases = 0
+    s_n_seqs  = 0
+    s_n_bases = 0
     reads   = []
 
     if param > 1.:
@@ -105,20 +91,25 @@ def sample_random_fastq(fn, param, s_seed=7):
             seq  = next(fq).strip()
             next(fq)
             qual = next(fq).strip()
+            n_seqs  += 1
+            #n_bases += len(seq)
             if num:
                 if(n_seqs - 1 < num):
                     d = n_seqs-1
                 else:
                     d = int(h[(n_seqs-1)%100000]*n_seqs)
                 if(d < num):
-                    n_bases += len(seq)
-                    n_seqs += 1
+                    if reads[d]:
+                        s_n_seqs  -= 1
+                        s_n_bases -= len(reads[d][1])
                     reads[d] = (name, seq, qual)
+                    s_n_seqs  += 1
+                    s_n_bases += len(seq)
             elif( h[(n_seqs-1)%100000] < frac):
-                n_bases += len(seq)
-                n_seqs += 1
                 reads.append((name, seq, qual))
-        return (reads, n_seqs, n_bases)
+                s_n_seqs  += 1
+                s_n_bases += len(seq)
+        return (reads, s_n_seqs, s_n_bases)
 
 
 # test
