@@ -88,11 +88,16 @@ def get_sts_csv_path(d, logger):
 
     return None
 
-def run_platformqc(data_path, output_path, b_width = 1000):
-    log_path  = os.path.join(output_path, "log", "log_rs2_platformqc.txt")
-    fig_path  = os.path.join(output_path, "fig", "fig_rs2_platformqc_length.png")
-    fig_path2 = os.path.join(output_path, "fig", "fig_rs2_platformqc_score.png")
-    json_path = os.path.join(output_path, "QC_vals_rs.json")
+def run_platformqc(data_path, output_path, *, suffix=None, b_width = 1000):
+    if not suffix:
+        suffix = ""
+    else:
+        suffix = "_" + suffix
+    log_path  = os.path.join(output_path, "log", "log_rs2_platformqc" + suffix + ".txt")
+    fig_path  = os.path.join(output_path, "fig", "fig_rs2_platformqc_length" + suffix + ".png")
+    fig_path2 = os.path.join(output_path, "fig", "fig_rs2_platformqc_score" + suffix + ".png")
+    json_path = os.path.join(output_path, "QC_vals_rs" + suffix + ".json")
+
     # json
     tobe_json = {}
 
@@ -117,7 +122,7 @@ def run_platformqc(data_path, output_path, b_width = 1000):
     logger.addHandler(fh)
     #####################
 
-    logger.info("Started sequel platform QC for %s" % data_path)
+    logger.info("Started RS-II platform QC for %s" % data_path)
 
     xml_file = get_sts_xml_path(data_path, logger)
 
@@ -138,7 +143,7 @@ def run_platformqc(data_path, output_path, b_width = 1000):
 
     vals = df['HQRegionEnd'].values[df['ReadScore']>0.1] - df['HQRegionStart'].values[df['ReadScore']>0.1]
 
-    (a, b) = lq_gamma.estimate_gamma_dist_scipy(vals, verbose=2)
+    (a, b) = lq_gamma.estimate_gamma_dist_scipy(vals, logger)
     logger.info("Fitting by Gamma dist finished.")
     _max   = np.array(vals).max()
     _mean  = np.array(vals).mean()
@@ -217,7 +222,6 @@ def run_platformqc(data_path, output_path, b_width = 1000):
 
 # test
 if __name__ == "__main__":
-    
     run_platformqc("/home/fukasay/basecalled/rs2/", "/home/fukasay/analyses/longQC/rs2_platform_test/")
 
     ### SNR

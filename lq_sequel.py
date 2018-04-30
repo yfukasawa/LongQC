@@ -212,11 +212,14 @@ def get_bam_path(d, logger):
         return [None] * 2
 
 
-def run_platformqc(data_path, output_path, b_width = 1000):
-
-    log_path  = os.path.join(output_path, "log", "log_sequel_platformqc.txt")
-    fig_path  = os.path.join(output_path, "fig", "fig_sequel_platformqc_length.png")
-    json_path = os.path.join(output_path, "QC_vals_sequel.json")
+def run_platformqc(data_path, output_path, *, suffix=None, b_width = 1000):
+    if not suffix:
+        suffix = ""
+    else:
+        suffix = "_" + suffix
+    log_path  = os.path.join(output_path, "log", "log_sequel_platformqc" + suffix + ".txt")
+    fig_path  = os.path.join(output_path, "fig", "fig_sequel_platformqc_length" + suffix + ".png")
+    json_path = os.path.join(output_path, "QC_vals_sequel"  + suffix + ".json")
     # json
     tobe_json = {}
 
@@ -269,6 +272,7 @@ def run_platformqc(data_path, output_path, b_width = 1000):
     control_throughput = 0
 
     if get_readtype(scrap_bam.header) == 'SCRAP':
+        logger.info("Started to load scraps.bam...")
         control_throughput = set_scrap(bam_reads, scrap_bam, snr)
     else:
         logger.ERROR("the given scrap file has incorrect header.")
@@ -276,6 +280,7 @@ def run_platformqc(data_path, output_path, b_width = 1000):
     logger.info("Scrap reads were loaded.")
 
     if get_readtype(subr_bam.header) == 'SUBREAD':
+        logger.info("Started to load subreads.bam...")
         set_subreads(bam_reads, subr_bam, snr)
     else:
         logger.ERROR("the given subread file has incorrect header.")
@@ -292,7 +297,7 @@ def run_platformqc(data_path, output_path, b_width = 1000):
             tot_lengths.append(l[3])
             hr_lengths.append(l[2])
 
-    (a, b) = lq_gamma.estimate_gamma_dist_scipy(hr_lengths, verbose=2)
+    (a, b) = lq_gamma.estimate_gamma_dist_scipy(hr_lengths, logger)
     logger.info("Fitting by Gamma dist finished.")
 
     _max  = np.array(hr_lengths).max()
@@ -360,7 +365,6 @@ def run_platformqc(data_path, output_path, b_width = 1000):
 # test
 if __name__ == "__main__":
     # check_sq has to be False; otherwise, this doesn't work.
-
     run_platformqc("/home/fukasay/rawdata/pb/rs2_ecoli_pacbio_official/", "/home/fukasay/analyses/longQC/sequel_platform_test/")
 
     # fraction hist
