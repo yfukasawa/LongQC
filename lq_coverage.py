@@ -92,6 +92,21 @@ class LqCoverage:
         self.__est_coverage()
         self.logger.info("Estimation of coverage distribution finished.")
 
+    def get_mean(self):
+        if not self.mean_main:
+            self.logger.warning("Mean has no value. Do estimation first.")
+        return self.mean_main
+
+    def get_sd(self):
+        if not self.cov_main:
+            self.logger.warning("SD has no value. Do estimation first.")
+        return np.sqrt(self.cov_main)
+
+    def get_unmapped_frac(self):
+        if self.unmapped_frac_trimmed == 0.0:
+            self.logger.warning("Unmapped fraction has no value. Do estimation first.")
+        return self.unmapped_frac_trimmed
+
     def __est_coverage(self):
         self.unmapped_frac_trimmed   = len(self.df[LqCoverage.COVERAGE_COLUMN].values[np.where(self.df[LqCoverage.COVERAGE_COLUMN] == 0.0)]) \
                                        / len(self.df[LqCoverage.QLENGTH_COLUMN])
@@ -158,7 +173,20 @@ class LqCoverage:
             plt.show()
         plt.close()
 
-    def plot_unmapped_frac_terminal(self, fp=None, adp5_pos=None, adp3_pos=None, x_max=145):
+    def calc_genome_size(self, throughput):
+        if self.unmapped_frac_trimmed >= LqCoverage.UNMAPPED_FRACTION_THRESHOLD:
+            # poission est
+            _s1 = throughput / self.min_lambda
+            _s2 = throughput / self.max_lambda
+            return "%d < x < %d" % (_s2, _s1)
+        else:
+            # gmm
+            m_size = int((throughput * (1.0 - self.unmapped_frac_trimmed)) / self.mean_main)
+            _sdm = int((throughput * (1.0 - self.unmapped_frac_trimmed)) / (self.mean_main - self.get_sd()))
+            _sdp = int((throughput * (1.0 - self.unmapped_frac_trimmed)) / (self.mean_main + self.get_sd()))
+            return "%d: %d < x < %d (68\% confidence interval)" % (m_size, _sdp, _sdm)
+
+    def plot_unmapped_frac_terminal(self, fp=None, adp5_pos=None, adp3_pos=None, *, x_max=145):
         plt.figure(figsize=(12,5))
         plt.subplot(1,2,1)
         t5l, t3l, il = self.__region_analysis(3, 1)
@@ -200,7 +228,7 @@ class LqCoverage:
             plt.show()
         plt.close()
 
-    def plot_qscore_dist(self, platform='ont', fp=None):
+    def plot_qscore_dist(self, fp=None, *, platform='ont'):
         if platform == 'ont':
             mid_threshold = 7 # ont
         else:
@@ -222,7 +250,7 @@ class LqCoverage:
             plt.show()
         plt.close()
 
-    def plot_length_vs_coverage(self, fp=None, interval=3000.0):
+    def plot_length_vs_coverage(self, fp=None, *, interval=3000.0):
         ### read score after size binning.
         subplot  = self.__gen_boxplot_length_vs_coverage(interval)
         bin_size = self.df.groupby('Interval').size()
@@ -247,7 +275,7 @@ class LqCoverage:
 
     def __gen_boxplot_length_vs_coverage(self, interval):
         self.df['Interval'] = np.floor(self.df[LqCoverage.QLENGTH_COLUMN].values/interval)
-        return self.df.boxplot(column=LqCoverage.COVERAGE_COLUMN, by='Interval', sym='+', rot=90)
+        return self.df.boxplot(column=LqCoverage.COVERAGE_COLUMN, by='Interval', sym='+', rot=90, figsize=(int(max(self.df['Interval'])/5+0.5),6))
 
     # est_coverage_dist sometimes return weird mu, maybe due to local maxima, so
     #  below method is an ugly working solution.
