@@ -68,7 +68,8 @@ def write_fastq(fn, reads):
             fq.write("@%s\n%s\n+\n%s\n" % r)
 
 # follow the logic flow of seqtk
-def sample_random_fastq(fn, param, s_seed=7):
+# 2018/4/30 added exclude list. This is an ad-hoc way, and violates sampling schema. but let's see.
+def sample_random_fastq(fn, param, *, s_seed=7, elist=None):
     frac    = 0.
     num     = 0
     n_seqs  = 0
@@ -87,12 +88,15 @@ def sample_random_fastq(fn, param, s_seed=7):
         for line in fq:
             if(n_seqs%100000 == 0):
                 h = np.random.uniform(size = 100000)
-            name = line.strip()[1:]
+            name = line.strip()[1:].split(" ")[0]
             seq  = next(fq).strip()
             next(fq)
             qual = next(fq).strip()
             n_seqs  += 1
             #n_bases += len(seq)
+            if name in elist:
+                print("%s is skipped." % name)
+                continue
             if num:
                 if(n_seqs - 1 < num):
                     d = n_seqs-1
