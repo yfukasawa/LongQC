@@ -1,9 +1,5 @@
-import h5py
-import os, sys, time
-import shutil
-import random
-import tarfile
-import logging
+import os, sys, time, h5py, json
+import shutil, random, tarfile, logging
 import matplotlib.pyplot as plt
 import numpy             as np
 
@@ -14,7 +10,6 @@ from operator        import itemgetter
 def get_flowcell_coord():
     # for the case we have multiple layout
     return _c2cor_r94_r95()
-
 
 def _cor2c_r94_r95():
     layout = np.zeros((32,16), dtype=int)
@@ -31,7 +26,6 @@ def _cor2c_r94_r95():
                 layout[i*4+j][15-z] = c
 
     return layout
-
 
 def _c2cor_r94_r95():
     layout = [0] * 513
@@ -50,7 +44,6 @@ def _c2cor_r94_r95():
     layout[0] = None
 
     return layout
-            
 
 def list_fast5_targz(d):
     if not os.path.isdir(d):
@@ -69,11 +62,9 @@ def list_fast5_targz(d):
 
     return list_ftg
 
-
 def get_members_from_tar(fname):
     tar = tarfile.open(fname)
     return tar.getmembers()
-
 
 #h5py cannot accept file handle, so we have to get actual files first.
 def extract_tar(fname, base_path=''):
@@ -81,7 +72,6 @@ def extract_tar(fname, base_path=''):
     tar = tarfile.open(fname)
     tar.extractall(base_path)
     tar.close()
-
 
 #https://community.nanoporetech.com/posts/pulling-time-to-each-read?search_term=start_time
 def list_fast5_files(d, logger):
@@ -107,7 +97,6 @@ def list_fast5_files(d, logger):
             list_fast5.append(p)
 
     return list_fast5
-        
 
 def open_fast5(path):
     try:
@@ -117,14 +106,11 @@ def open_fast5(path):
         return None
     return f
 
-
 def get_channel_id(f):
     return int(f['/UniqueGlobalKey']['channel_id'].attrs['channel_number'])
 
-
 def get_sampling_rate(f):
     return int(f['/UniqueGlobalKey']['channel_id'].attrs['sampling_rate'])
-
 
 def get_read_nodename(f):
     keys = f['Raw/Reads'].keys()
@@ -135,18 +121,22 @@ def get_read_nodename(f):
 
     return list(keys)[0]
 
+def get_flowcell(f):
+    return f['/UniqueGlobalKey']['context_tags'].attrs['flowcell_type']
+
+def get_kit(f):
+    # sequencing_kit
+    return f['/UniqueGlobalKey']['context_tags'].attrs['sequencing_kit']
 
 def get_start_time(f):
     n   = get_read_nodename(f)
     s_t = f['Raw/Reads'][n].attrs['start_time']
     return int(s_t/get_sampling_rate(f))
 
-
 def get_duration(f):
     n = get_read_nodename(f)
     d = f['Raw/Reads'][n].attrs['duration']
     return int(d/get_sampling_rate(f))
-
 
 def wrapper(f5):
     fast5 = open_fast5(f5)
@@ -155,10 +145,11 @@ def wrapper(f5):
     c_id  = get_channel_id(fast5) -1 
     s_t   = get_start_time(fast5)
     durat = get_duration(fast5)
+    fc  = get_flowcell(fast5)
+    kit = get_kit(fast5)
     fast5.close()
 
-    return ( c_id, (s_t, s_t+durat) )
-
+    return ( c_id, (s_t, s_t+durat), fc, kit )
 
 def process_uncompressed_single(l, logger, n_channel=512):
     logger.info("File list loaded. Size = %d" % len(l))
@@ -181,8 +172,7 @@ def process_uncompressed_single(l, logger, n_channel=512):
 
         fast5.close()
 
-
-def process_uncompressed_multi(p, l, bag, logger):
+def process_uncompressed_multi(p, l, bag, fcs, kits, logger):
     logger.info("File list loaded. Size = %d" % len(l))
 
     #bag = [set() for _ in range(512)]
@@ -193,6 +183,8 @@ def process_uncompressed_multi(p, l, bag, logger):
         if t == None:
             continue
         bag[t[0]].add(t[1])
+        fcs.add(t[2])
+        kits.add(t[3])
 
         """
         # assertion
@@ -212,17 +204,25 @@ def process_uncompressed_multi(p, l, bag, logger):
         print(cnt)
         """
 
-def run_platformqc(data_path, log_path, plot_path, n_channel = 512, n_process=15):
-    #d = "/home/fukasay/rawdata/ont/20171024_0704_20171024_ecoli_1D_test/fast5/"
+def run_platformqc(platform, data_path, output_path, *, suffix=None, n_channel = 512, n_process=15):
+    THRESHOLD_INACTIVE = 0.0025
 
-    ld = os.path.dirname(log_path)
-    pd = os.path.dirname(plot_path)
-
+    ld = os.path.join(output_path, "log")
+    pd = os.path.join(output_path, "fig")
     if not os.path.isdir(ld):
         os.makedirs(ld, exist_ok=True)
 
     if not os.path.isdir(pd):
         os.makedirs(pd, exist_ok=True)
+    if not suffix:
+        suffix = ""
+    else:
+        suffix = "_" + suffix
+    log_path  = os.path.join(ld, "log_ont_platform" +  suffix + ".txt")
+    plot_path = os.path.join(pd, "fig_ont_platform" +  suffix + ".png")
+    json_path = os.path.join(output_path, "QC_vals_" + platform + suffix + ".json")
+    # json
+    tobe_json = {}
 
     ### logging conf ###
     logger = logging.getLogger(__name__)
@@ -238,7 +238,7 @@ def run_platformqc(data_path, log_path, plot_path, n_channel = 512, n_process=15
     logger.addHandler(fh)
     #####################
 
-    logger.info("Started nanopore platform QC for %s" % data_path)
+    logger.info("Started %s platform QC for %s" % (platform, data_path))
     logger.info("The num of channel:%d, the num of process:%d" % (n_channel, n_process))
 
     l    = list_fast5_files(data_path, logger)
@@ -252,8 +252,10 @@ def run_platformqc(data_path, log_path, plot_path, n_channel = 512, n_process=15
         logger.warning("The given path is a mixture of compressed and uncompressed files. Check: %s" % data_path)
         return 1
 
-    bag = [set() for _ in range(n_channel)]
-    occ = []
+    bag  = [set() for _ in range(n_channel)]
+    fcs  = set()
+    kits = set()
+    occ  = []
 
     p = Pool(processes=n_process)
 
@@ -266,13 +268,16 @@ def run_platformqc(data_path, log_path, plot_path, n_channel = 512, n_process=15
             sub_dir  = os.path.basename(f).replace(".tar.gz", '')
             extract_tar(f, base_path=base_dir) # this method extract all members at the same dir of f
             _l = list_fast5_files( os.path.join(base_dir, sub_dir), logger )
-            process_uncompressed_multi(p, _l, bag, logger)
+            process_uncompressed_multi(p, _l, bag, fcs, kits, logger)
             shutil.rmtree( os.path.join(base_dir, sub_dir) )
     else:
-        process_uncompressed_multi(p, l, bag, logger)
+        process_uncompressed_multi(p, l, bag, fcs, kits, logger)
 
     p.close()
     logger.info("All of fast5 files were loaded.")
+
+    tobe_json['Sequencing kit'] = str(", ".join(str(s.decode("utf-8")) for s in kits))
+    tobe_json['Flowcell'] = str(", ".join(str(s.decode("utf-8")) for s in fcs))
 
     logger.info("Aggregating pore running time.")
     max = -1
@@ -300,8 +305,14 @@ def run_platformqc(data_path, log_path, plot_path, n_channel = 512, n_process=15
 
     logger.info("Aggregation finished.")
 
+    tobe_json['Sequencing time in seconds'] = int(max)
+    tobe_json['The time reached maximum active pore rate'] = int(np.argmax(occ))
+    tobe_json['The maximum active pore rate'] = float(np.max(occ))
+
     for i in range(n_channel):
         channel_wise_cnt[i] /= max
+
+    tobe_json['The fraction of inactive pores'] = float(np.where(np.array(channel_wise_cnt) < THRESHOLD_INACTIVE)[0].shape[0]/n_channel)
 
     y = np.arange(0, 33)
     x = np.arange(0, 17)
@@ -335,7 +346,7 @@ def run_platformqc(data_path, log_path, plot_path, n_channel = 512, n_process=15
     plt.colorbar()
     plt.tight_layout()
     plt.title("Pore activity mapped on the actual layout")
-    plt.contour(X, Y, Z, levels=[0.0025], linewidths=2, linestyles='dashed')
+    plt.contour(X, Y, Z, levels=[THRESHOLD_INACTIVE], linewidths=2, linestyles='dashed')
     plt.pink()
 
     logger.info("Generating plot 3.")
@@ -351,8 +362,11 @@ def run_platformqc(data_path, log_path, plot_path, n_channel = 512, n_process=15
     #plt.show()
     logger.info("Plots were saved to %s." % plot_path)
 
+    with open(json_path, "w") as f:
+        logger.info("Quality measurements were written into a JSON file: %s" % json_path)
+        json.dump(tobe_json, f, indent=4)
 
 # test
 if __name__ == "__main__":
-    d = "/home/fukasay/rawdata/ont/20171218_1536_20171218_ECOLI_1DSQUARE_TEST_tiny/fast5/"
-    run_platformqc(d, "/home/fukasay/analyses/longQC/ont_platform_test/log/log_ont_platform.txt", "/home/fukasay/analyses/longQC/ont_platform_test/fig/fig_ont_platform.png", n_process=5)
+    d = "/home/fukasay/rawdata/ont/20171029_1450_20171029_ecoli_1D_square_test/fast5/"
+    run_platformqc(d, "/home/fukasay/analyses/longQC/ont_platform_test_10291d/", n_process=5)
