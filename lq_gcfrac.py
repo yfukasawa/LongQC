@@ -138,6 +138,7 @@ def plot_unmasked_gc_frac(reads, *, fp=None, logger=None, CHUNK_SIZE = 150, b_wi
 
     res = calc_read_gc_frac(reads)
     logger.info("Mean GC composition: %.3f" % float(res[1]/res[2]) )
+    rtn_list = [np.mean(res[0]), np.std(res[0])]
     plt.hist(res[0], alpha=0.3, bins=np.arange(min(res[0]), max(res[0]) + b_width, b_width), color='blue', normed=True)
     dens_read = gaussian_kde(res[0])
     logger.info("Kernel density estimation done for read GC composition")
@@ -162,6 +163,8 @@ def plot_unmasked_gc_frac(reads, *, fp=None, logger=None, CHUNK_SIZE = 150, b_wi
     else:
         plt.show()
     plt.close()
+
+    return rtn_list
 
 
 # test
