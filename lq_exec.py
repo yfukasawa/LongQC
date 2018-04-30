@@ -1,4 +1,4 @@
-import sys, os
+import sys, os, logging
 from subprocess import Popen, PIPE
 
 class LqExec:
@@ -25,15 +25,15 @@ class LqExec:
             ferr = PIPE
         else:
             ferr = open(err, "w")
-
         try:
             self.proc = Popen([self.bin_path] + list(args), stdout=fout, stderr=ferr)
             if self.logger:
                 _arg = [self.bin_path] + list(args)
                 command = " ".join([str(i) for i in list(args)])
-                self.logger.debug("below command is executed: %s" % command)
+                self.logger.info("below command is executed: %s" % command)
                 self.logger.info("%s is started." % self.bin_path)
-        except:
+        except OSError as e:
+            logger.error(e)
             if out:
                 fout.close()
             if err:
@@ -43,6 +43,27 @@ class LqExec:
                 fout.close()
             if err:
                 ferr.close()
+
+    # still buggy
+    def communicate(self, *args, inp=None):
+        try:
+            self.proc = Popen([self.bin_path] + list(args), stdout=PIPE, stderr=PIPE, stdin=PIPE)
+            (stdout, stderr) = self.proc.communicate(input=inp)
+            if self.logger:
+                _arg = [self.bin_path] + list(args)
+                command = " ".join([str(i) for i in list(args)])
+                self.logger.info("below command is executed: %s" % command)
+                self.logger.info("%s is started." % self.bin_path)
+            print(stdout, stderr)
+        except OSError as e:
+            logger.error(e)
+        else:
+            pass
+
+    def set_stdin(self, string):
+        if not self.proc:
+            return None
+        self.proc.stdin.write(string)
 
     def get_stdout(self):
         if not self.proc:
@@ -58,7 +79,7 @@ class LqExec:
         return self.proc.poll()
 
     def get_pid(self):
-        return self.proc.pid
+        return str(self.proc.pid)
 
     def get_bin_path(self):
         return self.bin_path
@@ -66,11 +87,8 @@ class LqExec:
 
 # stand alone
 if __name__ == "__main__":
-
+    pass
     #print(subprocess.check_output('ls'))
 
-    le = LqExec("/usr/bin/ls")
-    le.exec("-ll", "-a", out="/home/fukasay/test_exec.txt")
-
-
-
+    #le = LqExec("/usr/bin/ls")
+    #le.exec("-ll", "-a", out="/home/fukasay/test_exec.txt")
