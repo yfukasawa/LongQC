@@ -1,10 +1,13 @@
-import os, logging
-import bindings.python.edlib
+import os, re, logging
+#import bindings.python.edlib
+import numpy as np
+import edlib
 
 def _cutr(reads, adp, th, r, *, len_list=[]):
     iden_max  = -1
     match_num = 0
     cut_pos   = []
+    repat = re.compile(r'(\d+)[DHIMNPSX=]{1}')
     if len(reads[0]) > 2:
         has_qual = True
     else:
@@ -14,23 +17,26 @@ def _cutr(reads, adp, th, r, *, len_list=[]):
             pass
         else:
             len_list.append( len(read[1]) )
-        result = bindings.python.edlib.align(adp, read[1][-r:], mode="HW", task='path')
-        if result['identity'] >th:
-            #print(read[0], result['identity'], result['locations'], result['cigar'])
-            start = result['locations'][0][0]
-            cut_pos.append(start)
+        result = edlib.align(adp, read[1][-r:], mode="HW", task='path')
+        identity = 1.0 - float(result['editDistance']/np.sum([int(i) for i in repat.findall(result['cigar'])]))
+        if identity >th:
+            #print(read[0], result, identity, result['locations'], result['cigar'], identity)
+            start = len(read[1]) - r + result['locations'][0][0]
+            cut_pos.append(r-result['locations'][0][0])
             match_num += 1        
-            if result['identity'] > iden_max:
-                iden_max = result['identity']
+            if identity > iden_max:
+                iden_max = identity
             read[1] = read[1][:start]
             if has_qual:
                 read[2] = read[2][:start]
+
     return (iden_max, match_num, cut_pos)
 
 def _cutf(reads, adp, th, r, *, len_list=[]):
     iden_max  = -1
     match_num = 0
     cut_pos   = []
+    repat = re.compile(r'(\d+)[DHIMNPSX=]{1}')
     if len(reads[0]) > 2:
         has_qual = True
     else:
@@ -40,35 +46,22 @@ def _cutf(reads, adp, th, r, *, len_list=[]):
             pass
         else:
             len_list.append( len(read[1]) )
-        result = bindings.python.edlib.align(adp, read[1][:r], mode="HW", task='path')
-        if result['identity'] >th:
-            #print(read[0], result['identity'], result['locations'], result['cigar'])
+        result = edlib.align(adp, read[1][:r], mode="HW", task='path')
+        identity = 1.0 - float(result['editDistance']/np.sum([int(i) for i in repat.findall(result['cigar'])]))
+        if identity >th:
+            #print(read[0], result, identity, result['locations'], result['cigar'], identity)
             end = result['locations'][0][1]
             cut_pos.append(end)
             match_num += 1        
-            if result['identity'] > iden_max:
-                iden_max = result['identity']
+            if identity > iden_max:
+                iden_max = identity
             read[1] = read[1][end+1:]
             if has_qual:
                 read[2] = read[2][end+1:]
+
     return (iden_max, match_num, cut_pos)
 
 def cut_adapter(reads, *, len_list=None, adp_t=None, adp_b = None, logger=None, th=0.75, length=150):
-    """
-    > sequel_adapter
-    ATCTCTCTCAACAACAACAACGGAGGAGGAGGAAAAGAGAGAGAT
-    > rs2_adapter
-    ATCTCTCTCTTTTCCTCCTCCTCCGTTGTTGTTGTTGAGAGAGAT
-
-    > 1d Y-t
-    AATGTACTTCGTTCAGTTACGTATTGCT
-    > 1d Y-b
-    GCAATACGTAACTGAACGAAGT
-
-    > rapid kit
-    GTTTTCGCATTTATCGTGAAACGCTTTCGCGTTTTTCGTGCGCCGCTTCA
-    """
-
     iden_max5 = 0.0
     iden_max3 = 0.0
 
@@ -78,7 +71,7 @@ def cut_adapter(reads, *, len_list=None, adp_t=None, adp_b = None, logger=None, 
 
     if adp_t and adp_b:
         (iden_max5, mnum5, cpos5) = _cutf(reads, adp_t, th, length, len_list=len_list)
-        (iden_max3, mnum3, cpos3) = _cutr(reads, adp_t, th, length)
+        (iden_max3, mnum3, cpos3) = _cutr(reads, adp_b, th, length)
         logger.info("Adapter Sequence: %s, max identity:%f and the number of trimmed reads: %d" % (adp_t, iden_max5, mnum5))
         logger.info("Adapter Sequence: %s, max identity:%f and the number of trimmed reads: %d" % (adp_b, iden_max3, mnum3))
         return ((iden_max5, mnum5, cpos5), (iden_max3, mnum3, cpos3))
@@ -89,16 +82,6 @@ def cut_adapter(reads, *, len_list=None, adp_t=None, adp_b = None, logger=None, 
         return (iden_max5, mnum, cpos)
 
     if not adp_t and adp_b:
-        (iden_max3, mnum3, cpos3) = _cutr(reads, adp_t, th, length)
+        (iden_max3, mnum3, cpos3) = _cutr(reads, adp_b, th, length, len_list=len_list)
         logger.info("Adapter Sequence: %s, max identity:%f and the number of trimmed reads: %d" % (adp_b, iden_max3, mnum3))
         return (iden_max3, mnum3, cpos3)
-
-    """
-    print('traverse was finished. %d reads were processed.' % tot)
-    print('Reads having adapter-like seq in both ends: %d / %d' % (trimboth, tot))
-    print('Reads having adapter-like seq in 5\' ends: %d / %d' % (trim5 - trimboth, tot))
-    print('Reads having adapter-like seq in 3\' ends: %d / %d' % (trim3 - trimboth, tot))
-    print('Max identity in the reads: %.3f' % iden_max5)
-    print('Max identity in the reads: %.3f' % iden_max3)
-    print(max3_seq)
-    """
