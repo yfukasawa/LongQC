@@ -188,8 +188,8 @@ def command_sample(args):
             args.miniargs = "-Y -k 12 -w 5 -l 1000"
         elif p == 'ont-1dsq':
             args.ont = True
-            args.adp5 = "AATGTACTTCGTTCAGTTACGTATTGCT"
-            args.adp3 = "GCAATACGTAACTGAACGAAGT"
+            args.adp5 = "GGCGTCTGCTTGGGTGTTTAACCTTTTTGTCAGAGAGGTTCCAAGTCAGAGAGGTTCCT"
+            args.adp3 = "GGAACCTCTCTGACTTGGAACCTCTCTGACAAAAAGGTTAAACACCCAAGCAGACGCCAGCAAT"
             args.miniargs = "-Y -k 12 -w 5 -l 1000"
         logger.info("Preset \"%s\" was applied. Options --pb(--ont), --adapter_[53], --minimap2_args were overwritten." % (p,))
 
@@ -197,21 +197,13 @@ def command_sample(args):
     logger.info('Input file parsing was finished. #seqs:%d, #bases: %d' % (n_seqs, n_bases))
     if file_format_code == 0:
         fastx_path = os.path.join(args.out, "analysis", "pbbam_converted_seq_file" + suffix + ".fastq")
-        write_fastq(reads)
+        write_fastq(fastx_path, reads)
         logger.info('Temporary work file was made at %s' % fastx_path)
-    elif file_format_code == -1:
+    elif file_format_code == -1 or file_format_code == 1:
         logger.error('Input file is unsupported file format: %s' % args.input)
         sys.exit()
     else:
         fastx_path = args.input
-
-    if args.adp5 and args.adp3:
-        (tuple_5, tuple_3) = cut_adapter(reads, adp_t=args.adp5, adp_b=args.adp3, logger=logger)
-    elif not args.adp5 and args.adp3:
-        tuple_3 = cut_adapter(reads, adp_b=args.adp3, adp_t=None, logger=logger)
-        #cut_adapter(reads, lengths, adp3, logger=logger)
-    elif args.adp5 and not args.adp3:
-        tuple_5 = cut_adapter(reads, adp_t=args.adp5, adp_b=None, logger=logger)
 
     logger.info("Computation of the low complexity region started.")
     lm = LqMask(reads, "/home/fukasay/Projects/minimap2_mod/sdust", args.out, suffix=suffix, n_proc=10)
@@ -271,6 +263,24 @@ def command_sample(args):
     tobe_json["Length_stats"]["Mean_read_length"] = float(mean_len)
     tobe_json["Length_stats"]["N50_read_length"]  = float(n50)
 
+    plot_length_dist(fig_path, lengths, a, b, longest, mean_len, n50, True if args.pb else False)
+    logger.info("Genarated the sample read length plot.")
+
+    (gc_read_mean, gc_read_sd) = plot_unmasked_gc_frac(reads, logger=logger, fp=fig_path_gc)
+    logger.info("Genarated the sample gc fraction plot.")
+
+    tobe_json["GC_stats"] = {}
+    tobe_json["GC_stats"]["Mean_GC_content"] = gc_read_mean
+    tobe_json["GC_stats"]["SD_GC_content"]   = gc_read_sd
+
+    if args.adp5 and args.adp3:
+        (tuple_5, tuple_3) = cut_adapter(reads, adp_t=args.adp5, adp_b=args.adp3, logger=logger)
+    elif not args.adp5 and args.adp3:
+        tuple_3 = cut_adapter(reads, adp_b=args.adp3, adp_t=None, logger=logger)
+        #cut_adapter(reads, lengths, adp3, logger=logger)
+    elif args.adp5 and not args.adp3:
+        tuple_5 = cut_adapter(reads, adp_t=args.adp5, adp_b=None, logger=logger)
+
     if tuple_5:
         tobe_json["Stats_for_adapter5"] = {}
         tobe_json["Stats_for_adapter5"]["Num_of_trimmed_reads_5"] = tuple_5[1]
@@ -283,20 +293,14 @@ def command_sample(args):
         tobe_json["Stats_for_adapter3"]["Max_identity_adp3"] = tuple_3[0]
         tobe_json["Stats_for_adapter3"]["Average_position_from_3_end"] = np.mean(tuple_3[2])
 
-    plot_length_dist(fig_path, lengths, a, b, longest, mean_len, n50, True if args.pb else False)
-    logger.info("Genarated the sample read length plot.")
-
-    (gc_read_mean, gc_read_sd) = plot_unmasked_gc_frac(reads, logger=logger, fp=fig_path_gc)
-    logger.info("Genarated the sample gc fraction plot.")
-
-    tobe_json["GC_stats"] = {}
-    tobe_json["GC_stats"]["Mean_GC_content"] = gc_read_mean
-    tobe_json["GC_stats"]["SD_GC_content"]   = gc_read_sd
+    # trimmed reads by edlib are saved as fastq
+    if args.trim:
+        write_fastq(args.trim, reads)
 
     # here wait until the minimap procerss finishes
     while True:
         if le.get_poll() is not None:
-            logger.info("Process of %s terminated." % le.get_bin_path)
+            logger.info("Process %s for %s terminated." % (le.get_pid(), le.get_bin_path()))
             break
         logger.info("Calculating overlaps of sampled reads...")
         sleep(30)
@@ -326,39 +330,39 @@ def command_sample(args):
 
     root_dict = {}
     root_dict['stats']  = {'Sample name': suffix.replace('_', ''), 'Yield': int(throughput), 'Longest read': int(longest), \
-                           'Number of reads': len(lengths), 'Q10 bases': "%.2f%%" % float(100*q10/throughput) }
+                           'Number of reads': len(lengths), 'Q10 bases': "%.3f%%" % float(100*q10/throughput) }
     if lc.get_unmapped_frac():
-        root_dict['stats']['Non-overlapped read fraction'] = float(lc.get_unmapped_frac())
+        root_dict['stats']['Non-overlapped read fraction'] = "%.3f" % float(lc.get_unmapped_frac())
 
     if tuple_5 or tuple_3:
         root_dict['ad'] = {}
     if tuple_5:
         root_dict['ad']["Number of trimmed reads in 5\'"] = tuple_5[1]
-        root_dict['ad']["Max identity fir adpter in 5\'"] = tuple_5[0]
-        root_dict['ad']["Average trimmed length in 5\'"] = np.mean(tuple_5[2])
+        root_dict['ad']["Max seq identity for the adpter in 5\'"] = "%.3f" % tuple_5[0]
+        root_dict['ad']["Average trimmed length in 5\'"] = "%.3f" % np.mean(tuple_5[2])
     if tuple_3:
         root_dict['ad']["Number of trimmed reads in 3\'"] = tuple_3[1]
-        root_dict['ad']["Max identity fir adpter in 3\'"] = tuple_3[0]
-        root_dict['ad']["Average trimmed length in 3\'"] = np.mean(tuple_3[2])
+        root_dict['ad']["Max seq identity for the adpter in 3\'"] = "%.3f" % tuple_3[0]
+        root_dict['ad']["Average trimmed length in 3\'"] = "%.3f" % np.mean(tuple_3[2])
 
     root_dict['rl'] = {'name': os.path.basename(fig_path),\
                       'stats':{\
-                               'Mean read length': mean_len,\
-                               'N50': n50
+                               'Mean read length': "%.3f" % mean_len,\
+                               'N50': "%.3f" % n50
                       }}
     root_dict['rq'] = {'name': os.path.basename(fig_path_rq)}
     root_dict['rc'] = {'cov_plot_name': os.path.basename(fig_path_cv), 'cov_over_len_plot_name': os.path.basename(fig_path_cl),\
                        'cov_ovlp_qv_plot_name': os.path.basename(fig_path_qv),\
                        'stats':{\
                                 'Number of sampled reads':s_n_seqs,\
-                                'Mean per read coverage': lc.get_mean(),\
-                                's.d. per read coverage': lc.get_sd(), \
+                                'Mean per read coverage': "%.3f" % lc.get_mean(),\
+                                's.d. per read coverage': "%.3f" % lc.get_sd(), \
                                 'Crude estimated genome size': lc.calc_genome_size(throughput),\
                         }}
     root_dict['gc'] = {'name': os.path.basename(fig_path_gc),\
                       'stats':{\
-                               'Mean per read GC content': gc_read_mean,\
-                               's.d. per read GC content': gc_read_sd
+                               'Mean per read GC content': "%.3f %%" % (100.0 * gc_read_mean),\
+                               's.d. per read GC content': "%.3f %%" % (100.0 * gc_read_sd)
                       }}
     root_dict['fr'] = {'name': os.path.basename(fig_path_ta)}
     root_dict['sc'] = {'name': os.path.basename(fig_path_ma)}
@@ -419,6 +423,7 @@ if __name__ == "__main__":
     parser_sample.add_argument('-p', '--preset', choices=presets, help=help_preset, metavar='preset')
     parser_sample.add_argument('-s', '--sample_name', help='sample name is added as a suffix for each output file.', dest = 'suf', default = None)
     parser_sample.add_argument('-o', '--output', help='path for output directory', dest = 'out', default = None)
+    parser_sample.add_argument('-t', '--trim_output', help='path for trimmed reads. If this is None, trimmed reads won\'t be saved.', dest = 'trim', default = None)
     parser_sample.add_argument('input', help='Input [fasta, fastq, or pbbam]', type=str)
     parser_sample.set_defaults(handler=command_sample)
 
