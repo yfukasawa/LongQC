@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 #from scipy.stats   import gumbel_r
 from sklearn  import mixture
 from operator import itemgetter
+from scipy.signal import argrelmax
 
 """
 #### deprecated
@@ -58,6 +59,7 @@ def est_confidence_interval_mu(df, column_i, k=2, nbs=1000):
 
     return st.t.interval(0.99, len(_mus)-1, loc=np.mean(_mus), scale=st.sem(_mus))
 """
+
 class LqCoverage:
 
     UNMAPPED_FRACTION_THRESHOLD = 0.4
@@ -114,6 +116,22 @@ class LqCoverage:
                                        / len(self.df[LqCoverage.QLENGTH_COLUMN])
         self.logger.info("Unmapped fraction: %.3f (naive), %.3f (coverage considered)" % (self.unmapped_frac_untrimmed, self.unmapped_frac_trimmed))
 
+        self.model_main_comp = self.__est_coverage_dist_gmm(k_i=2)
+        self.model = self.model_main_comp[0]
+        self.mean_main = self.model_main_comp[1]
+        self.cov_main  = self.model_main_comp[2]
+
+        raw_hist = plt.hist((self.df[LqCoverage.N_MBASE_COLUMN] / self.df[LqCoverage.QLENGTH_COLUMN]),
+                            alpha=0.2,
+                            bins=np.arange(0,
+                                           self.mean_main + 10 * np.sqrt(self.cov_main) + self.mean_main / 10,
+                                           self.mean_main / 10),
+                            color='green',
+                            normed=True)
+        plt.close()
+
+        self.low_coverage = self.__looks_lowcoverage(raw_hist)
+
         if self.unmapped_frac_trimmed >= LqCoverage.UNMAPPED_FRACTION_THRESHOLD:
             self.logger.warning("The fraction of zero coverage read is high %.3f" % self.unmapped_frac_trimmed)
             self.min_lambda = -1 * math.log(self.unmapped_frac_trimmed - LqCoverage.UNMAPPED_FRACTION_PARAM_MIN)
@@ -121,13 +139,25 @@ class LqCoverage:
             range_str = str(self.min_lambda) + "-" + str(self.max_lambda)
             self.logger.warning("If and only if the data is healthy, very rough estimated coverage range is %s." % range_str)
 
-        self.model_main_comp = self.__est_coverage_dist_gmm(k_i=2)
-        self.model = self.model_main_comp[0]
-        self.mean_main = self.model_main_comp[1]
-        self.cov_main  = self.model_main_comp[2]
+        if self.low_coverage and self.unmapped_frac_trimmed < LqCoverage.UNMAPPED_FRACTION_THRESHOLD:
+            self.logger.warning("The fraction of zero coverage read is not too high %.3f, but still looks low coverage" % self.unmapped_frac_trimmed)
+            self.min_lambda = -1 * math.log(self.unmapped_frac_trimmed - LqCoverage.UNMAPPED_FRACTION_PARAM_MIN)
+            self.max_lambda = -1 * math.log(self.unmapped_frac_trimmed - LqCoverage.UNMAPPED_FRACTION_PARAM_MAX)
+            range_str = str(self.min_lambda) + "-" + str(self.max_lambda)
+            self.logger.warning("If and only if the data is healthy, very rough estimated coverage range is %s." % range_str)
+
+    def __looks_lowcoverage(self, hist):
+        relmaxs = argrelmax(hist[0])
+        if hist[0][0] / np.sum(hist[0]) <0.01:
+            return False
+        for mx_i in relmaxs[0]:
+            if hist[0][mx_i] > (hist[0][0] / 5):
+                return False
+                break
+        return True
 
     def plot_coverage_dist(self, fp=None):
-        gmm_x = np.linspace(0, self.mean_main+4*np.sqrt(self.cov_main), 5000)
+        gmm_x = np.linspace(0, self.df[LqCoverage.COVERAGE_COLUMN].max(), 5000)
         gmm_y = np.exp(self.model.score_samples(gmm_x.reshape(-1,1)))
         plt.grid(True)
 
@@ -142,16 +172,7 @@ class LqCoverage:
             plt.plot(pois_x, pois_y_max, label="Fitted Model by Poisson model (" + "%.3f" % self.max_lambda + ")")
         else:
             plt.plot(gmm_x, gmm_y, label="Fitted by Gaussian mixture model")
-
-        if self.unmapped_frac_trimmed < LqCoverage.UNMAPPED_FRACTION_THRESHOLD:
-            plt.hist(self.df[LqCoverage.COVERAGE_COLUMN],
-                     alpha=0.2,
-                     bins=np.arange(0,
-                                    self.mean_main + 10 * np.sqrt(self.cov_main) + self.mean_main / 10,
-                                    self.mean_main / 10),
-                     color='red',
-                     normed=True)
-            self.logger.debug(self.model_main_comp[1:])
+            plt.xlim(0, self.mean_main+10*np.sqrt(self.cov_main))
 
         plt.hist((self.df[LqCoverage.N_MBASE_COLUMN] / self.df[LqCoverage.QLENGTH_COLUMN]),
                  alpha=0.2,
@@ -160,6 +181,15 @@ class LqCoverage:
                                 self.mean_main / 10),
                  color='green',
                  normed=True)
+        plt.hist(self.df[LqCoverage.COVERAGE_COLUMN],
+                 alpha=0.2,
+                 bins=np.arange(0,
+                                self.mean_main + 10 * np.sqrt(self.cov_main) + self.mean_main / 10,
+                                self.mean_main / 10),
+                 color='red',
+                 normed=True)
+        self.logger.debug(self.model_main_comp[1:])
+
         plt.xlabel('Per read coverage')
         plt.ylabel('Probability density')
 
@@ -174,7 +204,7 @@ class LqCoverage:
         plt.close()
 
     def calc_genome_size(self, throughput):
-        if self.unmapped_frac_trimmed >= LqCoverage.UNMAPPED_FRACTION_THRESHOLD:
+        if self.unmapped_frac_trimmed >= LqCoverage.UNMAPPED_FRACTION_THRESHOLD or self.low_coverage:
             # poission est
             _s1 = throughput / self.min_lambda
             _s2 = throughput / self.max_lambda
@@ -182,11 +212,9 @@ class LqCoverage:
         else:
             # gmm
             m_size = int((throughput * (1.0 - self.unmapped_frac_trimmed)) / self.mean_main)
-            _sdm = int((throughput * (1.0 - self.unmapped_frac_trimmed)) / (self.mean_main - self.get_sd()))
-            _sdp = int((throughput * (1.0 - self.unmapped_frac_trimmed)) / (self.mean_main + self.get_sd()))
-            return "%d: %d < x < %d (68\% confidence interval)" % (m_size, _sdp, _sdm)
+            return str(m_size)
 
-    def plot_unmapped_frac_terminal(self, fp=None, adp5_pos=None, adp3_pos=None, *, x_max=145):
+    def plot_unmapped_frac_terminal(self, fp=None, *, adp5_pos=None, adp3_pos=None, x_max=145):
         plt.figure(figsize=(12,5))
         plt.subplot(1,2,1)
         t5l, t3l, il = self.__region_analysis(3, 1)
@@ -213,14 +241,18 @@ class LqCoverage:
             ax = plt.subplot(121)
             ax.set_ylim(0, ymax3)
             ymax = ymax3
+
         if adp5_pos:
             #adp5_pos -> 45 for pb, 61 for 1d, and 120 for 1d2.
-            plt.axvline(x=adp5_pos, linestyle='dashed', linewidth=2, color='red', alpha=0.8) # pacbio
-            plt.text(adp5_pos, ymax*0.85, r'Length of the adapter')
+            ax = plt.subplot(121)
+            ax.axvline(x=adp5_pos, linestyle='dashed', linewidth=2, color='red', alpha=0.8) # pacbio
+            ax.text(adp5_pos, ymax*0.85, r'Length of the adapter')
+
         if adp3_pos:
             #adp3_pos -> 45 for pb, 22 for 1d, and 86 for 1d2.
-            plt.axvline(x=adp3_pos, linestyle='dashed', linewidth=2, color='red', alpha=0.8) # pacbio
-            plt.text(adp3_pos, ymax*0.85, r'Length of the adapter')
+            ax = plt.subplot(122)
+            ax.axvline(x=adp3_pos, linestyle='dashed', linewidth=2, color='red', alpha=0.8) # pacbio
+            ax.text(adp3_pos, ymax*0.85, r'Length of the adapter', horizontalalignment='right')
 
         if fp:
             plt.savefig(fp, bbox_inches="tight")
@@ -275,7 +307,7 @@ class LqCoverage:
 
     def __gen_boxplot_length_vs_coverage(self, interval):
         self.df['Interval'] = np.floor(self.df[LqCoverage.QLENGTH_COLUMN].values/interval)
-        return self.df.boxplot(column=LqCoverage.COVERAGE_COLUMN, by='Interval', sym='+', rot=90, figsize=(int(max(self.df['Interval'])/5+0.5),6))
+        return self.df.boxplot(column=LqCoverage.COVERAGE_COLUMN, by='Interval', sym='+', rot=90, figsize=(2*int(max(self.df['Interval'])/5+0.5), 4.8))
 
     # est_coverage_dist sometimes return weird mu, maybe due to local maxima, so
     #  below method is an ugly working solution.
@@ -369,13 +401,12 @@ class LqCoverage:
 
         return(trim_5, trim_3, intrnl)
 
-
 # test
 if __name__ == "__main__":
 
-    lc = LqCoverage("/home/fukasay/temp/ont_ecoli_k12w5m40_oh2000_r40_min1000_debug.txt")
+    lc = LqCoverage("/home/fukasay/analyses/longQC/longqc_sampleqc_4239353418-FAB42451/analysis/minimap2/coverage_out_FAB42451.txt")
     lc.plot_coverage_dist()
-    lc.plot_unmapped_frac_terminal(adp5_pos=61, adp3_pos=None)
+    lc.plot_unmapped_frac_terminal(adp5_pos=61, adp3_pos=30)
     lc.plot_qscore_dist()
     lc.plot_length_vs_coverage()
 
