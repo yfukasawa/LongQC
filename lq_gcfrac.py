@@ -5,7 +5,7 @@ import matplotlib.mlab    as ml
 import numpy              as np
 
 from scipy.stats import gaussian_kde
-from lq_utils    import parse_fastq
+from lq_utils    import parse_fastx
 
 def calc_masked_chunk_read_gc_frac(reads, chunk_size=300, th=0.2):
     tot     = 0
@@ -172,7 +172,7 @@ if __name__ == "__main__":
 
     is_masked  = False
 
-    reads, n_seqs, n_bases = parse_fastq('/home/fukasay/basecalled/ont/20171029_1450_20171029_ecoli_1D_square_test/reads.fastq')
+    reads, n_seqs, n_bases = parse_fastx(path_to_reads)
     print('reads were loaded.\n')
 
     plot_unmasked_gc_frac(reads)
