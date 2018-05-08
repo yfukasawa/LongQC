@@ -1,6 +1,8 @@
 import logging, os, sys
 import numpy  as np
 import pandas as pd
+import matplotlib as mpl
+mpl.use('Agg')
 import matplotlib.pyplot as plt
 
 from lq_utils import write_fastq, parse_fastx

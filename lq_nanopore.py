@@ -1,5 +1,7 @@
 import os, sys, time, h5py, json
 import shutil, random, tarfile, logging
+import matplotlib as mpl
+mpl.use('Agg')
 import matplotlib.pyplot as plt
 import numpy             as np
 

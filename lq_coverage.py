@@ -2,6 +2,8 @@ import math, logging
 import numpy             as np
 import pandas            as pd
 import scipy.stats       as st
+import matplotlib as mpl
+mpl.use('Agg')
 import matplotlib.pyplot as plt
 
 #from scipy.stats   import gumbel_r
