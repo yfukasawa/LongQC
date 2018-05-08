@@ -43,7 +43,6 @@ def estimate_gamma_dist_scipy(vals, logger=None):
 
     return (alpha_hat, beta_hat)
 
-
 # test
 if __name__ == "__main__":
 

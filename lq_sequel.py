@@ -12,11 +12,6 @@ from lq_utils        import get_N50, get_NXX, rgb
 # This module was inspired by and is translation of SEQUELstats provided by Vertebrate resequencing team
 # github.com/VertebrateResequencing/SEQUELstats
 
-def pysam_wrap(rtn, fn, mode, kw):
-    bam = pysam.AlignmentFile(fn, mode, kw)
-    #print(rtn, fn, mode, kw)
-    
-
 def get_readtype(header):
     for d in header['RG']:
         if 'DS' in d and 'READTYPE' in d['DS']:
@@ -24,7 +19,6 @@ def get_readtype(header):
             for v in vals:
                 if v.split("=")[0] == 'READTYPE':
                     return v.split("=")[1]
-
 
 def set_scrap(list, in_bam, snr):
     control_throughput = 0
@@ -59,7 +53,6 @@ def set_scrap(list, in_bam, snr):
 
     return control_throughput
 
-
 def set_subreads(list, in_bam, snr):
     for r in in_bam:
         # scrap case
@@ -76,7 +69,6 @@ def set_subreads(list, in_bam, snr):
             for f in r.get_tag('sn'):
                 snr[i].append(f)
                 i += 1
-
 
 # l: list of tuple, which contains start, end, and read class
 def construct_polread(l):
@@ -140,7 +132,6 @@ def construct_polread(l):
     else:
         return ("".join(ql_cigar_like), "".join(st_cigar_like), hq, tot, False)
 
-
 def parse_sts_xml(filepath, ns=None):
     tree = et.parse(filepath)
     root = tree.getroot()
@@ -163,7 +154,6 @@ def parse_sts_xml(filepath, ns=None):
     tot = p0 + p1 + p2
     return [p0, p1, p2]
 
-
 def get_sts_xml_path(d, logger):
     if not os.path.isdir(d):
         logger.info("%s is not a dir" % d)
@@ -179,7 +169,6 @@ def get_sts_xml_path(d, logger):
             return p
 
     return None
-
 
 def get_bam_path(d, logger):
     subread_p = None
@@ -210,7 +199,6 @@ def get_bam_path(d, logger):
     else:
         logger.ERROR("bam files are missing in %s" % d)
         return [None] * 2
-
 
 def run_platformqc(data_path, output_path, *, suffix=None, b_width = 1000):
     if not suffix:
@@ -360,7 +348,6 @@ def run_platformqc(data_path, output_path, *, suffix=None, b_width = 1000):
 
     logger.info("Figs were generated.")
     logger.info("Finished all processes.")
-
 
 # test
 if __name__ == "__main__":
