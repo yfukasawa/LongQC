@@ -1,9 +1,9 @@
-import logging, os
+import logging, os, sys
 import numpy  as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
-from lq_utils import write_fastq, parse_fastq
+from lq_utils import write_fastq, parse_fastx
 from lq_exec  import LqExec
 from time     import sleep
 
@@ -102,9 +102,8 @@ class LqMask:
 # test
 if __name__ == "__main__":
 
-    (reads, n_seqs, n_bases) = parse_fastq("/home/fukasay/basecalled/ont/Ecoli_MinKNOW_1.4_RAD002_Sambrook/reads.fastq")
-
-    lm = LqMask(reads, "/home/fukasay/Projects/minimap2_mod/sdust", "/home/fukasay/sdust", n_proc=20)
+    # test
+    lm = LqMask(reads_obj, bin_path, dir_path, n_proc=10)
     lm.run_async_sdust()
     sdust_outf = lm.get_outfile_path()
     print(sdust_outf)
