@@ -138,11 +138,14 @@ def plot_unmasked_gc_frac(reads, *, fp=None, logger=None, CHUNK_SIZE = 150, b_wi
         sh.setFormatter(formatter)
         logger.addHandler(sh)
 
+    dens_read = None
+
     res = calc_read_gc_frac(reads)
     logger.info("Mean GC composition: %.3f" % float(res[1]/res[2]) )
     rtn_list = [np.mean(res[0]), np.std(res[0])]
     plt.hist(res[0], alpha=0.3, bins=np.arange(min(res[0]), max(res[0]) + b_width, b_width), color='blue', normed=True)
-    dens_read = gaussian_kde(res[0])
+    if len(res[0]) > 1:
+        dens_read = gaussian_kde(res[0])
     logger.info("Kernel density estimation done for read GC composition")
 
     res = calc_chunk_read_gc_frac(reads, chunk_size=CHUNK_SIZE)
@@ -152,7 +155,8 @@ def plot_unmasked_gc_frac(reads, *, fp=None, logger=None, CHUNK_SIZE = 150, b_wi
     logger.info("Kernel density estimation done for chunked read GC composition")
     plt.grid(True)
     xs = np.linspace(0,1.0,200)
-    plt.plot(xs, dens_read(xs), label="GC fraction read")
+    if dens_read:
+        plt.plot(xs, dens_read(xs), label="GC fraction read")
     plt.plot(xs, dens_chunk(xs), label="GC fraction of chunked read "+"("+str(CHUNK_SIZE)+ "bp)")
     logger.debug("mean %f, stdev %f" % (np.mean(res[0]), np.std(res[0])))
     #plt.plot(xs, ml.normpdf(xs, np.mean(res[0]), np.std(res[0])), label="GC fraction of chunked read "+"("+str(CHUNK_SIZE)+ "bp)")
@@ -174,16 +178,8 @@ if __name__ == "__main__":
 
     is_masked  = False
 
-    reads, n_seqs, n_bases = parse_fastx(path_to_reads)
+    reads, n_seqs, n_bases = parse_fastx("/path/to/input")
     print('reads were loaded.\n')
 
-    plot_unmasked_gc_frac(reads)
-
-    if is_masked:
-        res = calc_masked_read_gc_frac(reads)
-        print(res[1], res[2], "-->", res[1]/res[2])   
-
-    if is_masked:
-        res = calc_masked_chunk_read_gc_frac(reads, chunk_size=CHUNK_SIZE)
-        print(res[1], res[2], "-->", res[1]/res[2])
+    plot_unmasked_gc_frac(reads, fp="path/to/fig")
 
