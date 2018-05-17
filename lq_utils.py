@@ -151,7 +151,7 @@ def parse_fastx(fn):
             if e.quality:
                 reads.append( [e.name, e.sequence, e.quality] )
             else:
-                reads.append( [e.name, e.sequence] )
+                reads.append( [e.name, e.sequence, "!"*len(e.sequence)] )
             n_seqs  += 1
             n_bases += len(e.sequence)
 
@@ -207,6 +207,12 @@ def write_fastq(fn, reads):
         eprint("Error: the file %s already exists." % fn)
         return 1
 
+    try:
+        reads[0]
+    except IndexError:
+        eprint("Error: No read to be output")
+        return
+
     with open(fn, 'w') as fq:
         for r in reads:
             fq.write("@%s\n%s\n+\n%s\n" % tuple(r))
@@ -254,6 +260,9 @@ def sample_random_fastq_list(reads, param, *, s_seed=7, elist=None):
             s_reads.append([name, seq, qual])
             s_n_seqs  += 1
             s_n_bases += len(seq)
+
+    if num and n_seqs < num:
+        s_reads = s_reads[:n_seqs]
     return (s_reads, s_n_seqs, s_n_bases)
 
 # follow the logic flow of seqtk
