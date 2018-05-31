@@ -10,10 +10,10 @@
 
       Try 'longQC.py -h' for more information.
 
-    Purpose: longQC enables you to asses quality of sequence data
+    Purpose: LongQC enables you to asses the quality of sequence data
              coming from third-generation sequencers (long read).
 
-    Bugs: Please contact yoshinori.fukasawa@kaust.edu.sa
+    Bugs: Please contact to yoshinori.fukasawa@kaust.edu.sa
 '''
 
 import sys, os, logging, json, argparse, shlex
@@ -25,6 +25,7 @@ import pandas as pd
 from time        import sleep
 from scipy.stats import gamma
 from jinja2      import Environment, FileSystemLoader
+from collections import OrderedDict
 
 import lq_nanopore
 import lq_rs
@@ -179,7 +180,7 @@ def command_sample(args):
             args.pb = True
             args.adp5 = "ATCTCTCTCAACAACAACAACGGAGGAGGAGGAAAAGAGAGAGAT"
             args.adp3 = "ATCTCTCTCAACAACAACAACGGAGGAGGAGGAAAAGAGAGAGAT"
-            args.miniargs = "-Y -k 12 -w 5 -l 0 -q 140"
+            args.miniargs = "-Y -k 12 -w 5 -l 0 -p 100 -q 140"
         elif p == 'ont-ligation':
             args.ont = True
             args.adp5 = "AATGTACTTCGTTCAGTTACGTATTGCT"
@@ -223,9 +224,9 @@ def command_sample(args):
     logger.info('sequence sampling finished. #seqs:%d, #bases: %d, #n_sample: %f' % (s_n_seqs, s_n_bases, float(args.nsample)))
     write_fastq(sample_path, sreads)
 
-    q10 = np.sum(df_mask[5].values) # make c code to compute Q10 now for speed
+    q7 = np.sum(df_mask[5].values) # make c code to compute Q7 now for speed
     #q10 =  get_Qx_bases(reads, threshold=10) # too slow
-    logger.info("Q%d bases %d" % (10, q10))
+    logger.info("Q%d bases %d" % (7, q7))
 
     plot_qscore_dist(df_mask, 4, 2, fp=fig_path_rq)
 
@@ -258,7 +259,7 @@ def command_sample(args):
     logger.info("The number of reads: %d", len(lengths))
 
     tobe_json["Yield"]            = int(throughput)
-    tobe_json["Q10 bases"]        = str("%.2f%%" % float(100*q10/throughput))
+    tobe_json["Q7 bases"]         = str("%.2f%%" % float(100*q7/throughput))
     tobe_json["Longest_read"]     = int(longest)
     tobe_json["Num_of_reads"]     = len(lengths)
     tobe_json["Length_stats"] = {}
@@ -314,19 +315,19 @@ def command_sample(args):
     logger.info("Generating coverage related plots...")
     lc = LqCoverage(cov_path, logger)
     lc.plot_coverage_dist(fig_path_cv)
-    lc.plot_unmapped_frac_terminal(fig_path_ta, adp5_pos=len(args.adp5) if args.adp5 else None, adp3_pos=len(args.adp3) if args.adp3 else None)
+    lc.plot_unmapped_frac_terminal(fig_path_ta, adp5_pos=np.mean(tuple_5[2]) if args.adp5 and np.mean(tuple_5[2]) > 0 else None, adp3_pos=np.mean(tuple_3[2]) if args.adp3 and np.mean(tuple_3[2]) > 0 else None)
     lc.plot_qscore_dist(fig_path_qv)
     lc.plot_length_vs_coverage(fig_path_cl)
     logger.info("Generated coverage related plots.")
 
     tobe_json["Coverage_stats"] = {}
-    tobe_json["Coverage_stats"]["Non-overlapped fraction"] = float(lc.get_unmapped_frac())
+    tobe_json["Coverage_stats"]["Estumated non-overlapped fraction"] = float(lc.get_unmapped_med_frac())
     tobe_json["Coverage_stats"]["Mean_coverage"] = float(lc.get_mean())
     tobe_json["Coverage_stats"]["SD_coverage"]   = float(lc.get_sd())
     tobe_json["Coverage_stats"]["Estimated_crude_ome_size"] = str(lc.calc_genome_size(throughput))
     if args.preset:
         if args.preset == 'sequel':
-            tobe_json["Coverage_stats"]["Low quality read fraction"] = float(lc.get_unmapped_bad_frac() - lc.get_unmapped_frac())
+            tobe_json["Coverage_stats"]["Low quality read fraction"] = float(lc.get_unmapped_bad_frac() - lc.get_unmapped_med_frac())
 
     with open(json_path, "w") as f:
         logger.info("Quality measurements were written into a JSON file: %s" % json_path)
@@ -335,19 +336,20 @@ def command_sample(args):
     logger.info("Generated a json summary.")
 
     root_dict = {}
-    root_dict['stats']  = {'Sample name': suffix.replace('_', ''), 'Yield': int(throughput), 'Longest read': int(longest), \
-                           'Number of reads': len(lengths), 'Q10 bases': "%.3f%%" % float(100*q10/throughput) }
-    if lc.get_unmapped_frac():
-        root_dict['stats']['Non-overlapped read fraction'] = "%.3f" % float(lc.get_unmapped_frac())
+    root_dict['stats']  = OrderedDict([('Sample name', suffix.replace('_', '')), ('Yield', int(throughput)), ('Number of reads', len(lengths)), \
+                                        ('Q7 bases', "%.3f%%" % float(100*q7/throughput)), ('Longest read', int(longest))])
+    if lc.get_unmapped_med_frac():
+        root_dict['stats']['Estimated non-overlapped read fraction'] = "%.3f" % float(lc.get_unmapped_med_frac())
 
     if args.preset:
         if args.preset == 'sequel':
-            root_dict['stats']["Low quality read fraction"] = "%.3f" % float(lc.get_unmapped_bad_frac() - lc.get_unmapped_frac())
+            #root_dict['stats']["Unmappable quality read fraction"] = "%.3f" % float(lc.get_unmapped_med_frac())
+            root_dict['stats']["Estimated low quality read fraction"] = "%.3f" % float(lc.get_unmapped_bad_frac() - lc.get_unmapped_med_frac())
 
     if tuple_5 or tuple_3:
-        root_dict['ad'] = {}
+        root_dict['ad'] = OrderedDict()
     if tuple_5:
-        root_dict['ad']["Number of trimmed reads in 5\'"] = tuple_5[1]
+        root_dict['ad']["Number of trimmed reads in 5\' "] = tuple_5[1]
         root_dict['ad']["Max seq identity for the adpter in 5\'"] = "%.3f" % tuple_5[0]
         root_dict['ad']["Average trimmed length in 5\'"] = "%.3f" % np.mean(tuple_5[2])
     if tuple_3:
@@ -356,24 +358,22 @@ def command_sample(args):
         root_dict['ad']["Average trimmed length in 3\'"] = "%.3f" % np.mean(tuple_3[2])
 
     root_dict['rl'] = {'name': os.path.basename(fig_path),\
-                      'stats':{\
-                               'Mean read length': "%.3f" % mean_len,\
-                               'N50': "%.3f" % n50
-                      }}
+                      'stats':OrderedDict([\
+                               ('Mean read length', "%.3f" % mean_len),\
+                               ('N50', "%.3f" % n50)])}
     root_dict['rq'] = {'name': os.path.basename(fig_path_rq)}
     root_dict['rc'] = {'cov_plot_name': os.path.basename(fig_path_cv), 'cov_over_len_plot_name': os.path.basename(fig_path_cl),\
                        'cov_ovlp_qv_plot_name': os.path.basename(fig_path_qv),\
-                       'stats':{\
-                                'Number of sampled reads':s_n_seqs,\
-                                'Mean per read coverage': "%.3f" % lc.get_mean(),\
-                                's.d. per read coverage': "%.3f" % lc.get_sd(), \
-                                'Crude estimated ome size': lc.calc_genome_size(throughput),\
-                        }}
+                       'stats':OrderedDict([\
+                                ('Number of sampled reads', s_n_seqs),\
+                                ('Mean per read coverage', "%.3f" % lc.get_mean()),\
+                                ('s.d. per read coverage', "%.3f" % lc.get_sd()), \
+                                            ('Crude estimated ome size', lc.calc_genome_size(throughput))])}
     root_dict['gc'] = {'name': os.path.basename(fig_path_gc),\
-                      'stats':{\
-                               'Mean per read GC content': "%.3f %%" % (100.0 * gc_read_mean),\
-                               's.d. per read GC content': "%.3f %%" % (100.0 * gc_read_sd)
-                      }}
+                      'stats':OrderedDict([\
+                               ('Mean per read GC content', "%.3f %%" % (100.0 * gc_read_mean)),\
+                               ('s.d. per read GC content', "%.3f %%" % (100.0 * gc_read_sd))
+                                       ])}
     root_dict['fr'] = {'name': os.path.basename(fig_path_ta)}
     root_dict['sc'] = {'name': os.path.basename(fig_path_ma)}
 
