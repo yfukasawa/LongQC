@@ -69,15 +69,17 @@ class LqCoverage:
     UNMAPPED_FRACTION_PARAM_MAX = 0.2
     QLENGTH_COLUMN  = 1
     N_MBASE_COLUMN  = 2
-    COVERAGE_COLUMN = 4
-    QV_COLUMN = 5
+    GOOD_READ_COV_CORS = 4
+    COVERAGE_COLUMN = 5
+    QV_COLUMN = 6
 
     def __init__(self, table_path, logger=None):
         self.df = pd.read_table(table_path, sep='\t', header=None)
         self.min_lambda = None
         self.max_lambda = None
-        self.unmapped_frac_trimmed   = 0.0
-        self.unmapped_frac_untrimmed = 0.0
+        self.unmapped_frac_trimmed   = -1.0
+        self.unmapped_frac_untrimmed = -1.0
+        self.unmapped_bad_frac       = -1.0
         self.model = None
         self.model_main_comp = None
         self.mean_main = None
@@ -107,15 +109,22 @@ class LqCoverage:
         return np.sqrt(self.cov_main)
 
     def get_unmapped_frac(self):
-        if self.unmapped_frac_trimmed == 0.0:
+        if self.unmapped_frac_trimmed == -1.0:
             self.logger.warning("Unmapped fraction has no value. Do estimation first.")
         return self.unmapped_frac_trimmed
 
+    def get_unmapped_bad_frac(self):
+        if self.unmapped_bad_frac == -1.0:
+            self.logger.warning("Unmapped bad read fraction has no value. Do estimation first.")
+        return self.unmapped_bad_frac
+
     def __est_coverage(self):
-        self.unmapped_frac_trimmed   = len(self.df[LqCoverage.COVERAGE_COLUMN].values[np.where(self.df[LqCoverage.COVERAGE_COLUMN] == 0.0)]) \
-                                       / len(self.df[LqCoverage.QLENGTH_COLUMN])
-        self.unmapped_frac_untrimmed = len(self.df[LqCoverage.N_MBASE_COLUMN].values[np.where(self.df[LqCoverage.N_MBASE_COLUMN] == 0.0)]) \
-                                       / len(self.df[LqCoverage.QLENGTH_COLUMN])
+        self.unmapped_frac_trimmed   = self.df[LqCoverage.COVERAGE_COLUMN].values[np.where(self.df[LqCoverage.COVERAGE_COLUMN] == 0.0)].shape[0] \
+                                       / self.df.shape[0]
+        self.unmapped_frac_untrimmed = self.df[LqCoverage.N_MBASE_COLUMN].values[np.where(self.df[LqCoverage.N_MBASE_COLUMN] == 0.0)].shape[0] \
+                                       / self.df.shape[0]
+        self.unmapped_bad_frac       = self.df[LqCoverage.GOOD_READ_COV_CORS].values[np.where(self.df[LqCoverage.GOOD_READ_COV_CORS] == '0')].shape[0] \
+                                       / self.df.shape[0]
         self.logger.info("Unmapped fraction: %.3f (naive), %.3f (coverage considered)" % (self.unmapped_frac_untrimmed, self.unmapped_frac_trimmed))
 
         self.model_main_comp = self.__est_coverage_dist_gmm(k_i=2)
@@ -159,7 +168,7 @@ class LqCoverage:
         return True
 
     def plot_coverage_dist(self, fp=None):
-        gmm_x = np.linspace(0, self.df[LqCoverage.COVERAGE_COLUMN].max(), 5000)
+        gmm_x = np.linspace(0, self.mean_main+10*np.sqrt(self.cov_main), 5000)
         gmm_y = np.exp(self.model.score_samples(gmm_x.reshape(-1,1)))
         plt.grid(True)
 
@@ -190,7 +199,6 @@ class LqCoverage:
                                 self.mean_main / 10),
                  color='red',
                  normed=True)
-        self.logger.debug(self.model_main_comp[1:])
 
         plt.xlabel('Per read coverage')
         plt.ylabel('Probability density')
@@ -316,7 +324,7 @@ class LqCoverage:
     # nbs      : the number of bootstrap iteration
     # k_i      : initial value for the parameter for the number of component in GMM.
     # k_max    : maximum value for the parameter for the number of component in GMM.
-    def __est_confidence_interval_params(self, nbs=100, k_i=2, k_max=3):
+    def __est_confidence_interval_params(self, nbs=100, k_i=2, k_max=2):
         _mus    = np.zeros(nbs)
         _n      = np.zeros(nbs)
         _sigmas = np.zeros(nbs)
@@ -334,16 +342,22 @@ class LqCoverage:
 
     # k_i      : initial value for the parameter for the number of component in GMM.
     # k_max    : maximum value for the parameter for the number of component in GMM.
-    def __est_coverage_dist_gmm(self, k_i=2, k_max=10):
+    def __est_coverage_dist_gmm(self, k_i=2, k_max=2):
 
         for k in range(k_i, k_max+1):
             _c_i = -1 # index for coverage component. Assume there is only one such a component.
             _b_i = [] # index for background component 
 
-            m_f   = mixture.GaussianMixture(n_components=k).fit(self.df[LqCoverage.COVERAGE_COLUMN].values[np.nonzero(self.df[LqCoverage.COVERAGE_COLUMN])].reshape(-1,1),1)
+            #buggy
+            th_70_per = self.df[LqCoverage.COVERAGE_COLUMN].quantile(0.75)
+            nonzeros  = self.df[LqCoverage.COVERAGE_COLUMN].values[np.nonzero(self.df[LqCoverage.COVERAGE_COLUMN])]
+            m_f   = mixture.GaussianMixture(n_components=k).fit(nonzeros[nonzeros < th_70_per].reshape(-1,1),1)
+            
+            #m_f   = mixture.GaussianMixture(n_components=k).fit(self.df[LqCoverage.COVERAGE_COLUMN].values[np.nonzero(self.df[LqCoverage.COVERAGE_COLUMN])].reshape(-1,1),1)
+            self.logger.debug(m_f)
             order = m_f.weights_/[e[0] for inner in m_f.covariances_ for e in inner] # w/\sigma
             ratio = np.array([e for i in m_f.means_ for e in i])/np.array([e[0] for i in m_f.covariances_ for e in i])
-            weird_components = [i for i, v in enumerate(ratio) if v > 1] # sqrt(mu) > sigma
+            #weird_components = [i for i, v in enumerate(ratio) if v > 1] # sqrt(mu) > sigma
 
             self.logger.info("The order of componens %s " % " ".join([str(v) for v in order]) )
             self.logger.info("Means of components: %s k=%d" % (" ".join([str(e) for i in m_f.means_ for e in i]), k))
@@ -351,15 +365,16 @@ class LqCoverage:
 
             _max = -1*np.inf
             for i,v in enumerate(order):
-                if i in weird_components:
-                    continue
+                #if i in weird_components:
+                #    continue
 
                 if _max < v:
                     _max = v
                     _c_i = i
 
             for i in range(0, len(order)):
-                if i in weird_components or i == _c_i:
+                #if i in weird_components or i == _c_i:
+                if i == _c_i:
                     continue
                 else:
                     _b_i.append(i)
@@ -369,6 +384,8 @@ class LqCoverage:
             else:
                 return (m_f, m_f.means_[_c_i][0], m_f.covariances_[_c_i][0][0])
                 #return (k, m_f, m_f.means_[_c_i][0], m_f.covariances_[_c_i][0][0])
+
+        return  (m_f, m_f.means_[_c_i][0], m_f.covariances_[_c_i][0][0])
 
     def __region_analysis(self, column_i_coords, column_i_ql, threshold=50):
 
@@ -406,11 +423,11 @@ class LqCoverage:
 # test
 if __name__ == "__main__":
 
-    lc = LqCoverage("/home/fukasay/analyses/longQC/longqc_sampleqc_4239353418-FAB42451/analysis/minimap2/coverage_out_FAB42451.txt")
+    lc = LqCoverage("/home/fukasay/analyses/longQC/longqc_sampleqc_sequel2pM_75per/analysis/minimap2/coverage_out_m40.txt")
     lc.plot_coverage_dist()
-    lc.plot_unmapped_frac_terminal(adp5_pos=61, adp3_pos=30)
-    lc.plot_qscore_dist()
-    lc.plot_length_vs_coverage()
+    #lc.plot_unmapped_frac_terminal(adp5_pos=61, adp3_pos=30)
+    #lc.plot_qscore_dist()
+    #lc.plot_length_vs_coverage()
 
     """
     # internal break. experimental.

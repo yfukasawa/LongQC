@@ -123,7 +123,7 @@ def command_sample(args):
     if args.suf:
         suffix = "_" + args.suf
     else:
-        suffix = None
+        suffix = ""
 
     cov_path    = os.path.join(args.out, "analysis", "minimap2", "coverage_out" + suffix + ".txt")
     cov_path_e  = os.path.join(args.out, "analysis", "minimap2", "coverage_err" + suffix + ".txt")
@@ -142,6 +142,7 @@ def command_sample(args):
     html_path   = os.path.join(args.out, "web_summary" + suffix + ".html")
 
     df_mask = None
+    tuple_5 = tuple_3 = None
 
     # output_path will be made too.
     if not os.path.isdir(os.path.join(args.out, "analysis", "minimap2")):
@@ -178,7 +179,7 @@ def command_sample(args):
             args.pb = True
             args.adp5 = "ATCTCTCTCAACAACAACAACGGAGGAGGAGGAAAAGAGAGAGAT"
             args.adp3 = "ATCTCTCTCAACAACAACAACGGAGGAGGAGGAAAAGAGAGAGAT"
-            args.miniargs = "-Y -k 12 -w 5 -l 0"
+            args.miniargs = "-Y -k 12 -w 5 -l 0 -q 140"
         elif p == 'ont-ligation':
             args.ont = True
             args.adp5 = "AATGTACTTCGTTCAGTTACGTATTGCT"
@@ -229,7 +230,7 @@ def command_sample(args):
     plot_qscore_dist(df_mask, 4, 2, fp=fig_path_rq)
 
     # asynchronized
-    le = LqExec("/home/fukasay/Projects/minimap2_mod/minimap2-lite", logger=logger)
+    le = LqExec("/home/fukasay/Projects/minimap2_mod/minimap2-coverage", logger=logger)
     le_args = shlex.split("%s -t %d %s %s" % (args.miniargs, int(args.minit), fastx_path, sample_path))
     le.exec(*le_args, out=cov_path, err=cov_path_e)
 
@@ -322,7 +323,10 @@ def command_sample(args):
     tobe_json["Coverage_stats"]["Non-overlapped fraction"] = float(lc.get_unmapped_frac())
     tobe_json["Coverage_stats"]["Mean_coverage"] = float(lc.get_mean())
     tobe_json["Coverage_stats"]["SD_coverage"]   = float(lc.get_sd())
-    tobe_json["Coverage_stats"]["Estimated_crude_genome_size"] = str(lc.calc_genome_size(throughput))
+    tobe_json["Coverage_stats"]["Estimated_crude_ome_size"] = str(lc.calc_genome_size(throughput))
+    if args.preset:
+        if args.preset == 'sequel':
+            tobe_json["Coverage_stats"]["Low quality read fraction"] = float(lc.get_unmapped_bad_frac() - lc.get_unmapped_frac())
 
     with open(json_path, "w") as f:
         logger.info("Quality measurements were written into a JSON file: %s" % json_path)
@@ -335,6 +339,10 @@ def command_sample(args):
                            'Number of reads': len(lengths), 'Q10 bases': "%.3f%%" % float(100*q10/throughput) }
     if lc.get_unmapped_frac():
         root_dict['stats']['Non-overlapped read fraction'] = "%.3f" % float(lc.get_unmapped_frac())
+
+    if args.preset:
+        if args.preset == 'sequel':
+            root_dict['stats']["Low quality read fraction"] = float(lc.get_unmapped_bad_frac() - lc.get_unmapped_frac())
 
     if tuple_5 or tuple_3:
         root_dict['ad'] = {}
@@ -359,7 +367,7 @@ def command_sample(args):
                                 'Number of sampled reads':s_n_seqs,\
                                 'Mean per read coverage': "%.3f" % lc.get_mean(),\
                                 's.d. per read coverage': "%.3f" % lc.get_sd(), \
-                                'Crude estimated genome size': lc.calc_genome_size(throughput),\
+                                'Crude estimated ome size': lc.calc_genome_size(throughput),\
                         }}
     root_dict['gc'] = {'name': os.path.basename(fig_path_gc),\
                       'stats':{\
@@ -424,7 +432,7 @@ if __name__ == "__main__":
     parser_sample.add_argument('--minimap2_thread', help='the number of threads for sequences for minimap2.', dest = 'minit', default = 50)
     parser_sample.add_argument('-p', '--preset', choices=presets, help=help_preset, metavar='preset')
     parser_sample.add_argument('-s', '--sample_name', help='sample name is added as a suffix for each output file.', dest = 'suf', default = None)
-    parser_sample.add_argument('-o', '--output', help='path for output directory', dest = 'out', default = None)
+    parser_sample.add_argument('-o', '--output', help='path for output directory', dest = 'out', required=True, default = None)
     parser_sample.add_argument('-t', '--trim_output', help='path for trimmed reads. If this is None, trimmed reads won\'t be saved.', dest = 'trim', default = None)
     parser_sample.add_argument('input', help='Input [fasta, fastq, or pbbam]', type=str)
     parser_sample.set_defaults(handler=command_sample)
