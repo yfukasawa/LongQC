@@ -342,7 +342,7 @@ def command_sample(args):
 
     if args.preset:
         if args.preset == 'sequel':
-            root_dict['stats']["Low quality read fraction"] = float(lc.get_unmapped_bad_frac() - lc.get_unmapped_frac())
+            root_dict['stats']["Low quality read fraction"] = "%.3f" % float(lc.get_unmapped_bad_frac() - lc.get_unmapped_frac())
 
     if tuple_5 or tuple_3:
         root_dict['ad'] = {}

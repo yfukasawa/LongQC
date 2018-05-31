@@ -348,10 +348,10 @@ class LqCoverage:
             _c_i = -1 # index for coverage component. Assume there is only one such a component.
             _b_i = [] # index for background component 
 
-            #buggy
-            th_70_per = self.df[LqCoverage.COVERAGE_COLUMN].quantile(0.75)
+            #a little bit buggy
+            th_per = self.df[LqCoverage.COVERAGE_COLUMN].quantile(0.75)
             nonzeros  = self.df[LqCoverage.COVERAGE_COLUMN].values[np.nonzero(self.df[LqCoverage.COVERAGE_COLUMN])]
-            m_f   = mixture.GaussianMixture(n_components=k).fit(nonzeros[nonzeros < th_70_per].reshape(-1,1),1)
+            m_f   = mixture.GaussianMixture(n_components=k).fit(nonzeros[nonzeros < th_per].reshape(-1,1),1)
             
             #m_f   = mixture.GaussianMixture(n_components=k).fit(self.df[LqCoverage.COVERAGE_COLUMN].values[np.nonzero(self.df[LqCoverage.COVERAGE_COLUMN])].reshape(-1,1),1)
             self.logger.debug(m_f)
