@@ -79,10 +79,12 @@
 		</a>
                 <h1>Summary {{ suffix }}</h1>
 
+		{% if success %}
 		<div class="alert alert-success">
             	  <a href="#" class="close" data-dismiss="alert" aria-label="close">&times;</a>
   		  <strong>Success!</strong> Indicates a successful or positive action.
 		</div>
+		{% endif %}
 
 		<div class="item-in-pagecontent" id="">
 		  <h2 id="GS">General statistics</h2>
