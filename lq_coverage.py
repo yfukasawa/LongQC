@@ -69,9 +69,10 @@ class LqCoverage:
     UNMAPPED_FRACTION_PARAM_MAX = 0.2
     QLENGTH_COLUMN  = 1
     N_MBASE_COLUMN  = 2
-    GOOD_READ_COV_CORS = 4
-    COVERAGE_COLUMN = 5
-    QV_COLUMN = 6
+    MED_READ_COV_CORS = 4
+    GOOD_READ_COV_CORS = 5
+    COVERAGE_COLUMN = 6
+    QV_COLUMN = 7
 
     def __init__(self, table_path, logger=None):
         self.df = pd.read_table(table_path, sep='\t', header=None)
@@ -79,6 +80,7 @@ class LqCoverage:
         self.max_lambda = None
         self.unmapped_frac_trimmed   = -1.0
         self.unmapped_frac_untrimmed = -1.0
+        self.unmapped_frac_med       = -1.0
         self.unmapped_bad_frac       = -1.0
         self.model = None
         self.model_main_comp = None
@@ -113,6 +115,11 @@ class LqCoverage:
             self.logger.warning("Unmapped fraction has no value. Do estimation first.")
         return self.unmapped_frac_trimmed
 
+    def get_unmapped_med_frac(self):
+        if self.unmapped_frac_med == -1.0:
+            self.logger.warning("Unmapped medial fraction has no value. Do estimation first.")
+        return self.unmapped_frac_med
+
     def get_unmapped_bad_frac(self):
         if self.unmapped_bad_frac == -1.0:
             self.logger.warning("Unmapped bad read fraction has no value. Do estimation first.")
@@ -122,6 +129,8 @@ class LqCoverage:
         self.unmapped_frac_trimmed   = self.df[LqCoverage.COVERAGE_COLUMN].values[np.where(self.df[LqCoverage.COVERAGE_COLUMN] == 0.0)].shape[0] \
                                        / self.df.shape[0]
         self.unmapped_frac_untrimmed = self.df[LqCoverage.N_MBASE_COLUMN].values[np.where(self.df[LqCoverage.N_MBASE_COLUMN] == 0.0)].shape[0] \
+                                       / self.df.shape[0]
+        self.unmapped_frac_med       = self.df[LqCoverage.MED_READ_COV_CORS].values[np.where(self.df[LqCoverage.MED_READ_COV_CORS] == '0')].shape[0] \
                                        / self.df.shape[0]
         self.unmapped_bad_frac       = self.df[LqCoverage.GOOD_READ_COV_CORS].values[np.where(self.df[LqCoverage.GOOD_READ_COV_CORS] == '0')].shape[0] \
                                        / self.df.shape[0]
