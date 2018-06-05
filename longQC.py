@@ -175,26 +175,26 @@ def command_sample(args):
             args.pb = True
             args.adp5 = "ATCTCTCTCTTTTCCTCCTCCTCCGTTGTTGTTGTTGAGAGAGAT"
             args.adp3 = "ATCTCTCTCTTTTCCTCCTCCTCCGTTGTTGTTGTTGAGAGAGAT"
-            args.miniargs = "-Y -k 12 -w 5 -l 0"
+            args.miniargs = "-Y -k 12 -w 5 -l 0 -p 60 -q 160"
         elif p == 'sequel':
             args.pb = True
             args.adp5 = "ATCTCTCTCAACAACAACAACGGAGGAGGAGGAAAAGAGAGAGAT"
             args.adp3 = "ATCTCTCTCAACAACAACAACGGAGGAGGAGGAAAAGAGAGAGAT"
-            args.miniargs = "-Y -k 12 -w 5 -l 0 -p 100 -q 140"
+            args.miniargs = "-Y -k 12 -w 5 -l 0 -p 60 -q 160"
         elif p == 'ont-ligation':
             args.ont = True
             args.adp5 = "AATGTACTTCGTTCAGTTACGTATTGCT"
             args.adp3 = "GCAATACGTAACTGAACGAAGT"
-            args.miniargs = "-Y -k 12 -w 5 -l 1000"
+            args.miniargs = "-Y -k 12 -w 5 -l 0 -p 60 -q 160"
         elif p == 'ont-rapid':
             args.ont = True
             args.adp5 = "GTTTTCGCATTTATCGTGAAACGCTTTCGCGTTTTTCGTGCGCCGCTTCA"
-            args.miniargs = "-Y -k 12 -w 5 -l 1000"
+            args.miniargs = "-Y -k 12 -w 5 -l 0 -p 60 -q 160"
         elif p == 'ont-1dsq':
             args.ont = True
             args.adp5 = "GGCGTCTGCTTGGGTGTTTAACCTTTTTGTCAGAGAGGTTCCAAGTCAGAGAGGTTCCT"
             args.adp3 = "GGAACCTCTCTGACTTGGAACCTCTCTGACAAAAAGGTTAAACACCCAAGCAGACGCCAGCAAT"
-            args.miniargs = "-Y -k 12 -w 5 -l 1000"
+            args.miniargs = "-Y -k 12 -w 5 -l 0 -p 60 -q 160"
         logger.info("Preset \"%s\" was applied. Options --pb(--ont), --adapter_[53], --minimap2_args were overwritten." % (p,))
 
     (file_format_code, reads, n_seqs, n_bases) = open_seq(args.input)
@@ -325,9 +325,8 @@ def command_sample(args):
     tobe_json["Coverage_stats"]["Mean_coverage"] = float(lc.get_mean())
     tobe_json["Coverage_stats"]["SD_coverage"]   = float(lc.get_sd())
     tobe_json["Coverage_stats"]["Estimated_crude_ome_size"] = str(lc.calc_genome_size(throughput))
-    if args.preset:
-        if args.preset == 'sequel':
-            tobe_json["Coverage_stats"]["Low quality read fraction"] = float(lc.get_unmapped_bad_frac() - lc.get_unmapped_med_frac())
+    if args.pb == True:
+        tobe_json["Coverage_stats"]["Low quality read fraction"] = float(lc.get_unmapped_bad_frac() - lc.get_unmapped_med_frac())
 
     with open(json_path, "w") as f:
         logger.info("Quality measurements were written into a JSON file: %s" % json_path)
@@ -341,10 +340,9 @@ def command_sample(args):
     if lc.get_unmapped_med_frac():
         root_dict['stats']['Estimated non-overlapped read fraction'] = "%.3f" % float(lc.get_unmapped_med_frac())
 
-    if args.preset:
-        if args.preset == 'sequel':
-            #root_dict['stats']["Unmappable quality read fraction"] = "%.3f" % float(lc.get_unmapped_med_frac())
-            root_dict['stats']["Estimated low quality read fraction"] = "%.3f" % float(lc.get_unmapped_bad_frac() - lc.get_unmapped_med_frac())
+    if args.pb == True:
+        #root_dict['stats']["Unmappable quality read fraction"] = "%.3f" % float(lc.get_unmapped_med_frac())
+        root_dict['stats']["Estimated low quality read fraction"] = "%.3f" % float(lc.get_unmapped_bad_frac() - lc.get_unmapped_med_frac())
 
     if tuple_5 or tuple_3:
         root_dict['ad'] = OrderedDict()
