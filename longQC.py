@@ -175,26 +175,26 @@ def command_sample(args):
             args.pb = True
             args.adp5 = "ATCTCTCTCTTTTCCTCCTCCTCCGTTGTTGTTGTTGAGAGAGAT"
             args.adp3 = "ATCTCTCTCTTTTCCTCCTCCTCCGTTGTTGTTGTTGAGAGAGAT"
-            args.miniargs = "-Y -k 12 -w 5 -l 0 -p 60 -q 160"
+            args.miniargs = "-Y -k 12 -w 5 -l 0 -p 80 -q 160"
         elif p == 'sequel':
             args.pb = True
             args.adp5 = "ATCTCTCTCAACAACAACAACGGAGGAGGAGGAAAAGAGAGAGAT"
             args.adp3 = "ATCTCTCTCAACAACAACAACGGAGGAGGAGGAAAAGAGAGAGAT"
-            args.miniargs = "-Y -k 12 -w 5 -l 0 -p 60 -q 160"
+            args.miniargs = "-Y -k 12 -w 5 -l 0 -p 80 -q 160"
         elif p == 'ont-ligation':
             args.ont = True
             args.adp5 = "AATGTACTTCGTTCAGTTACGTATTGCT"
             args.adp3 = "GCAATACGTAACTGAACGAAGT"
-            args.miniargs = "-Y -k 12 -w 5 -l 0 -p 60 -q 160"
+            args.miniargs = "-Y -k 12 -w 5 -l 0 -p 80 -q 160"
         elif p == 'ont-rapid':
             args.ont = True
             args.adp5 = "GTTTTCGCATTTATCGTGAAACGCTTTCGCGTTTTTCGTGCGCCGCTTCA"
-            args.miniargs = "-Y -k 12 -w 5 -l 0 -p 60 -q 160"
+            args.miniargs = "-Y -k 12 -w 5 -l 0 -p 80 -q 160"
         elif p == 'ont-1dsq':
             args.ont = True
             args.adp5 = "GGCGTCTGCTTGGGTGTTTAACCTTTTTGTCAGAGAGGTTCCAAGTCAGAGAGGTTCCT"
             args.adp3 = "GGAACCTCTCTGACTTGGAACCTCTCTGACAAAAAGGTTAAACACCCAAGCAGACGCCAGCAAT"
-            args.miniargs = "-Y -k 12 -w 5 -l 0 -p 60 -q 160"
+            args.miniargs = "-Y -k 12 -w 5 -l 0 -p 80 -q 160"
         logger.info("Preset \"%s\" was applied. Options --pb(--ont), --adapter_[53], --minimap2_args were overwritten." % (p,))
 
     (file_format_code, reads, n_seqs, n_bases) = open_seq(args.input)
