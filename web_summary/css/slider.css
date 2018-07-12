@@ -1,0 +1,73 @@
+.btn-lg {
+    background-color: #eee;
+    width: 780px;
+    border: none;
+    text-align: left;
+    outline: none;
+}
+
+.btn-lg:hover {
+    background-color: #ccc;
+}
+
+.btn-lg:before {
+    content: '\02795';
+    margin-right: 20px;
+}
+
+.active:before {
+    content: '\02796';
+    margin-right: 20px;
+}
+
+.help{
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    text-align: center;
+    font-size: 16px;
+    background-color: #eee;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    cursor: default;
+}
+
+.help:before{
+    content: "\003F";
+    font-weight: bold;
+}
+
+.error{
+    display: inline-block;
+    text-align: center;
+    font-size: 16px;
+    background-color: #e64943;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    cursor: default;
+    color: #fff;
+}
+
+.error:before{
+    content: "x";
+    font-weight: bold;
+}
+
+.warn{
+    display: inline-block;
+    text-align: center;
+    font-size: 16px;
+    background-color: #ffd54b;
+    border-radius: 50%;
+    width: 24px;
+    height: 24px;
+    cursor: default;
+    color: black;
+}
+
+.warn:before{
+    content: "\00A1";
+    font-weight: bold;
+}
