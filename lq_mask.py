@@ -40,6 +40,8 @@ class LqMask:
         plt.grid(True)
         plt.hist(self.df[3], alpha=0.2, bins=np.arange(0, 1.0, 0.01), color='red')
         plt.xlim(0, 1.0)
+        plt.xlabel('Low complexity fraction')
+        plt.ylabel('Frequency')
         if fp:
             plt.savefig(fp, bbox_inches="tight")
         else:

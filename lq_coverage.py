@@ -74,7 +74,7 @@ class LqCoverage:
     COVERAGE_COLUMN = 6
     QV_COLUMN = 7
 
-    def __init__(self, table_path, logger=None):
+    def __init__(self, table_path, isRNA=False, logger=None):
         self.df = pd.read_table(table_path, sep='\t', header=None)
         self.min_lambda = None
         self.max_lambda = None
@@ -86,6 +86,7 @@ class LqCoverage:
         self.model_main_comp = None
         self.mean_main = None
         self.cov_main  = None
+        self.isRNA = isRNA
         if logger:
             self.logger = logger
         else:
@@ -152,17 +153,18 @@ class LqCoverage:
 
         self.low_coverage = self.__looks_lowcoverage(raw_hist)
 
-        if self.unmapped_frac_trimmed >= LqCoverage.UNMAPPED_FRACTION_THRESHOLD:
-            self.logger.warning("The fraction of zero coverage read is high %.3f" % self.unmapped_frac_trimmed)
-            self.min_lambda = -1 * math.log(self.unmapped_frac_trimmed - LqCoverage.UNMAPPED_FRACTION_PARAM_MIN)
-            self.max_lambda = -1 * math.log(self.unmapped_frac_trimmed - LqCoverage.UNMAPPED_FRACTION_PARAM_MAX)
+        if self.unmapped_frac_med >= LqCoverage.UNMAPPED_FRACTION_THRESHOLD:
+            self.logger.warning("The fraction of zero coverage read is high %.3f" % self.unmapped_frac_med)
+            self.min_lambda = -1 * math.log(self.unmapped_frac_med - LqCoverage.UNMAPPED_FRACTION_PARAM_MIN)
+            self.max_lambda = -1 * math.log(self.unmapped_frac_med - LqCoverage.UNMAPPED_FRACTION_PARAM_MAX)
             range_str = str(self.min_lambda) + "-" + str(self.max_lambda)
             self.logger.warning("If and only if the data is healthy, very rough estimated coverage range is %s." % range_str)
 
-        if self.low_coverage and self.unmapped_frac_trimmed < LqCoverage.UNMAPPED_FRACTION_THRESHOLD:
-            self.logger.warning("The fraction of zero coverage read is not too high %.3f, but still looks low coverage" % self.unmapped_frac_trimmed)
-            self.min_lambda = -1 * math.log(self.unmapped_frac_trimmed - LqCoverage.UNMAPPED_FRACTION_PARAM_MIN)
-            self.max_lambda = -1 * math.log(self.unmapped_frac_trimmed - LqCoverage.UNMAPPED_FRACTION_PARAM_MAX)
+        # for RNA long tail shape is usual.
+        if self.low_coverage and self.unmapped_frac_med < LqCoverage.UNMAPPED_FRACTION_THRESHOLD and not self.isRNA:
+            self.logger.warning("The fraction of zero coverage read is not too high %.3f, but still looks low coverage" % self.unmapped_frac_med)
+            self.min_lambda = -1 * math.log(self.unmapped_frac_med - LqCoverage.UNMAPPED_FRACTION_PARAM_MIN)
+            self.max_lambda = -1 * math.log(self.unmapped_frac_med - LqCoverage.UNMAPPED_FRACTION_PARAM_MAX)
             range_str = str(self.min_lambda) + "-" + str(self.max_lambda)
             self.logger.warning("If and only if the data is healthy, very rough estimated coverage range is %s." % range_str)
 
@@ -223,7 +225,7 @@ class LqCoverage:
         plt.close()
 
     def calc_genome_size(self, throughput):
-        if self.unmapped_frac_trimmed >= LqCoverage.UNMAPPED_FRACTION_THRESHOLD or self.low_coverage:
+        if self.unmapped_frac_trimmed >= LqCoverage.UNMAPPED_FRACTION_THRESHOLD or (self.low_coverage and not self.isRNA):
             # poission est
             _s1 = throughput / self.min_lambda
             _s2 = throughput / self.max_lambda
@@ -289,8 +291,9 @@ class LqCoverage:
                      self.df[LqCoverage.QV_COLUMN].values[np.where(self.df[LqCoverage.COVERAGE_COLUMN] != 0.0)]])
         plt.xticks([1,2], ["Non-OLP", "OLP"])
         ymin, ymax = plt.gca().get_ylim()
-        plt.axhspan(0,  5, facecolor='red', alpha=0.1)
-        plt.axhspan(5,  mid_threshold, facecolor='yellow', alpha=0.1)
+        #plt.axhspan(0,  5, facecolor='red', alpha=0.1)
+        #plt.axhspan(5,  mid_threshold, facecolor='yellow', alpha=0.1)
+        plt.axhspan(0, mid_threshold, facecolor='red', alpha=0.1)
         plt.axhspan(mid_threshold, ymax, facecolor='green', alpha=0.1)
         #plt.boxplot(df[5].values[np.where(df[4] == 0.0)])
         plt.ylim(0, ymax)
@@ -304,7 +307,7 @@ class LqCoverage:
     def plot_length_vs_coverage(self, fp=None, *, interval=3000.0):
         ### read score after size binning.
         subplot  = self.__gen_boxplot_length_vs_coverage(interval)
-        bin_size = self.df.groupby('Interval').size()
+        bin_size = self.df.groupby('Binned read length').size()
         boundary_reliable_bin = np.where(bin_size >= 50)[0].max()
         xmin, xmax = plt.gca().get_xlim()
         plt.axvspan(boundary_reliable_bin+1.5, xmax+1, facecolor='gray', alpha=0.1)
@@ -319,14 +322,13 @@ class LqCoverage:
         else:
             plt.show()
         plt.close()
-
         #interval = est_confidence_interval_params(df, 2, nbs=1000)
         #print(interval)
         #print(st.norm.ppf(0.2, loc=interval[0][1], scale=interval[1][0]))
 
     def __gen_boxplot_length_vs_coverage(self, interval):
-        self.df['Interval'] = np.floor(self.df[LqCoverage.QLENGTH_COLUMN].values/interval)
-        return self.df.boxplot(column=LqCoverage.COVERAGE_COLUMN, by='Interval', sym='+', rot=90, figsize=(2*int(max(self.df['Interval'])/5+0.5), 4.8))
+        self.df['Binned read length'] = np.floor(self.df[LqCoverage.QLENGTH_COLUMN].values/interval)
+        return self.df.boxplot(column=LqCoverage.COVERAGE_COLUMN, by='Binned read length', sym='+', rot=90, figsize=(2*int(max(self.df['Binned read length'])/5+0.5), 4.8))
 
     # est_coverage_dist sometimes return weird mu, maybe due to local maxima, so
     #  below method is an ugly working solution.

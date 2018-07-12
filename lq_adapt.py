@@ -79,7 +79,7 @@ def cut_adapter(reads, *, len_list=None, adp_t=None, adp_b = None, logger=None, 
     if adp_t and not adp_b:
         (iden_max5, mnum5, cpos5) = _cutf(reads, adp_t, th, length, len_list=len_list)
         logger.info("Adapter Sequence: %s, max identity:%f and the number of trimmed reads: %d" % (adp_t, iden_max5, mnum5))
-        return (iden_max5, mnum, cpos)
+        return (iden_max5, mnum5, cpos5)
 
     if not adp_t and adp_b:
         (iden_max3, mnum3, cpos3) = _cutr(reads, adp_b, th, length, len_list=len_list)

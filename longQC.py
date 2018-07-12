@@ -94,14 +94,14 @@ def plot_qscore_dist(df, column_qv, column_length, *, fp=None, platform='ont', i
         mid_threshold = 7 # ont
     else:
         mid_threshold = 8 # pb
-    df['Interval'] = np.floor(df[column_length].values/interval)
-    df.boxplot(column=column_qv, by='Interval', sym='+', rot=90, figsize=(2*int(max(df['Interval'])/5+0.5), 4.8))
+    df['Binned read length'] = np.floor(df[column_length].values/interval)
+    df.boxplot(column=column_qv, by='Binned read length', sym='+', rot=90, figsize=(2*int(max(df['Binned read length'])/5+0.5), 4.8))
     plt.grid(True)
     xmin, xmax = plt.gca().get_xlim()
     ymin, ymax = plt.gca().get_ylim()
     plt.xticks(np.arange(xmax+1), [int(i) for i in np.arange(xmax+1)*interval])
-    plt.axhspan(0,  5, facecolor='red', alpha=0.1)
-    plt.axhspan(5,  mid_threshold, facecolor='yellow', alpha=0.1)
+    plt.axhspan(0,  mid_threshold, facecolor='red', alpha=0.1)
+    #plt.axhspan(5,  mid_threshold, facecolor='yellow', alpha=0.1)
     plt.axhspan(mid_threshold, ymax, facecolor='green', alpha=0.1)
     #plt.boxplot(df[5].values[np.where(df[4] == 0.0)])
     plt.ylim(0, ymax)
@@ -118,7 +118,7 @@ def main(args):
     if hasattr(args, 'handler'):
         args.handler(args)
     else:
-        parser.printhelp()
+        parser.print_help()
 
 def command_sample(args):
     if args.suf:
@@ -178,23 +178,28 @@ def command_sample(args):
             args.miniargs = "-Y -k 12 -w 5 -l 0 -p 80 -q 160"
         elif p == 'sequel':
             args.pb = True
+            args.sequel = True
             args.adp5 = "ATCTCTCTCAACAACAACAACGGAGGAGGAGGAAAAGAGAGAGAT"
             args.adp3 = "ATCTCTCTCAACAACAACAACGGAGGAGGAGGAAAAGAGAGAGAT"
             args.miniargs = "-Y -k 12 -w 5 -l 0 -p 80 -q 160"
         elif p == 'ont-ligation':
             args.ont = True
             args.adp5 = "AATGTACTTCGTTCAGTTACGTATTGCT"
-            args.adp3 = "GCAATACGTAACTGAACGAAGT"
-            args.miniargs = "-Y -k 12 -w 5 -l 0 -p 80 -q 160"
+            #args.adp3 = "GCAATACGTAACTGAACGAAGT"
+            args.adp3 = "GCAATACGTAACTGAACG"
+            if args.rna:
+                args.miniargs = "-Y -k 12 -w 5 -l 0 -p 60 -q 160"
+            else:
+                args.miniargs = "-Y -k 12 -w 5 -l 0 -p 160 -q 160"
         elif p == 'ont-rapid':
             args.ont = True
             args.adp5 = "GTTTTCGCATTTATCGTGAAACGCTTTCGCGTTTTTCGTGCGCCGCTTCA"
-            args.miniargs = "-Y -k 12 -w 5 -l 0 -p 80 -q 160"
+            args.miniargs = "-Y -k 12 -w 5 -l 0 -p 160 -q 160"
         elif p == 'ont-1dsq':
             args.ont = True
             args.adp5 = "GGCGTCTGCTTGGGTGTTTAACCTTTTTGTCAGAGAGGTTCCAAGTCAGAGAGGTTCCT"
             args.adp3 = "GGAACCTCTCTGACTTGGAACCTCTCTGACAAAAAGGTTAAACACCCAAGCAGACGCCAGCAAT"
-            args.miniargs = "-Y -k 12 -w 5 -l 0 -p 80 -q 160"
+            args.miniargs = "-Y -k 12 -w 5 -l 0 -p 160 -q 160"
         logger.info("Preset \"%s\" was applied. Options --pb(--ont), --adapter_[53], --minimap2_args were overwritten." % (p,))
 
     (file_format_code, reads, n_seqs, n_bases) = open_seq(args.input)
@@ -228,15 +233,6 @@ def command_sample(args):
     #q10 =  get_Qx_bases(reads, threshold=10) # too slow
     logger.info("Q%d bases %d" % (7, q7))
 
-    plot_qscore_dist(df_mask, 4, 2, fp=fig_path_rq)
-
-    # asynchronized
-    le = LqExec("/home/fukasay/Projects/minimap2_mod/minimap2-coverage", logger=logger)
-    le_args = shlex.split("%s -t %d %s %s" % (args.miniargs, int(args.minit), fastx_path, sample_path))
-    le.exec(*le_args, out=cov_path, err=cov_path_e)
-
-    logger.info("Overlap computation started. Process is %s" % le.get_pid())
-
     if df_mask is not None:
         lengths = df_mask[2].values
     else:
@@ -253,6 +249,18 @@ def command_sample(args):
     longest    = np.max(lengths)
     mean_len   = np.array(lengths).mean()
     n50        = get_N50(lengths)
+
+    if n50 < 3000:
+        plot_qscore_dist(df_mask, 4, 2, interval=n50/2, fp=fig_path_rq)
+    else:
+        plot_qscore_dist(df_mask, 4, 2, fp=fig_path_rq)
+
+    # asynchronized
+    le = LqExec("/home/fukasay/Projects/minimap2_mod/minimap2-coverage", logger=logger)
+    le_args = shlex.split("%s -t %d %s %s" % (args.miniargs, int(args.minit), fastx_path, sample_path))
+    le.exec(*le_args, out=cov_path, err=cov_path_e)
+
+    logger.info("Overlap computation started. Process is %s" % le.get_pid())
 
     logger.info("Throughput: %d" % throughput)
     logger.info("Length of longest read: %d" % longest)
@@ -313,20 +321,24 @@ def command_sample(args):
 
     # execute minimap2_coverage
     logger.info("Generating coverage related plots...")
-    lc = LqCoverage(cov_path, logger)
+    lc = LqCoverage(cov_path, isRNA=args.rna, logger=logger)
     lc.plot_coverage_dist(fig_path_cv)
     lc.plot_unmapped_frac_terminal(fig_path_ta, adp5_pos=np.mean(tuple_5[2]) if args.adp5 and np.mean(tuple_5[2]) > 0 else None, adp3_pos=np.mean(tuple_3[2]) if args.adp3 and np.mean(tuple_3[2]) > 0 else None)
     lc.plot_qscore_dist(fig_path_qv)
-    lc.plot_length_vs_coverage(fig_path_cl)
+    if n50 < 3000:
+        lc.plot_length_vs_coverage(fig_path_cl, interval=n50/2)
+    else:
+        lc.plot_length_vs_coverage(fig_path_cl)
     logger.info("Generated coverage related plots.")
 
     tobe_json["Coverage_stats"] = {}
-    tobe_json["Coverage_stats"]["Estumated non-overlapped fraction"] = float(lc.get_unmapped_med_frac())
+    tobe_json["Coverage_stats"]["Estimated non-sense read fraction"] = float(lc.get_unmapped_med_frac())
     tobe_json["Coverage_stats"]["Mean_coverage"] = float(lc.get_mean())
     tobe_json["Coverage_stats"]["SD_coverage"]   = float(lc.get_sd())
-    tobe_json["Coverage_stats"]["Estimated_crude_ome_size"] = str(lc.calc_genome_size(throughput))
+    tobe_json["Coverage_stats"]["Estimated crude Xome size"] = str(lc.calc_genome_size(throughput))
     if args.pb == True:
-        tobe_json["Coverage_stats"]["Low quality read fraction"] = float(lc.get_unmapped_bad_frac() - lc.get_unmapped_med_frac())
+        pass
+        #tobe_json["Coverage_stats"]["Low quality read fraction"] = float(lc.get_unmapped_bad_frac() - lc.get_unmapped_med_frac())
 
     with open(json_path, "w") as f:
         logger.info("Quality measurements were written into a JSON file: %s" % json_path)
@@ -335,14 +347,19 @@ def command_sample(args):
     logger.info("Generated a json summary.")
 
     root_dict = {}
-    root_dict['stats']  = OrderedDict([('Sample name', suffix.replace('_', '')), ('Yield', int(throughput)), ('Number of reads', len(lengths)), \
-                                        ('Q7 bases', "%.3f%%" % float(100*q7/throughput)), ('Longest read', int(longest))])
+    root_dict['stats']  = OrderedDict([('Sample name', suffix.replace('_', '')), ('Yield', int(throughput)), ('Number of reads', len(lengths))])
+    if args.sequel:
+        root_dict['stats']['Q7 bases'] = "-"
+    else:
+        root_dict['stats']['Q7 bases'] = "%.3f%%" % float(100*q7/throughput)
+    root_dict['stats']['Longest read'] = int(longest)
+
     if lc.get_unmapped_med_frac():
-        root_dict['stats']['Estimated non-overlapped read fraction'] = "%.3f" % float(lc.get_unmapped_med_frac())
+        root_dict['stats']['Estimated non-sense read fraction'] = "%.3f" % float(lc.get_unmapped_med_frac())
 
     if args.pb == True:
-        #root_dict['stats']["Unmappable quality read fraction"] = "%.3f" % float(lc.get_unmapped_med_frac())
-        root_dict['stats']["Estimated low quality read fraction"] = "%.3f" % float(lc.get_unmapped_bad_frac() - lc.get_unmapped_med_frac())
+        pass
+        #root_dict['stats']["Estimated low quality read fraction"] = "%.3f" % float(lc.get_unmapped_bad_frac() - lc.get_unmapped_med_frac())
 
     if tuple_5 or tuple_3:
         root_dict['ad'] = OrderedDict()
@@ -354,6 +371,12 @@ def command_sample(args):
         root_dict['ad']["Number of trimmed reads in 3\'"] = tuple_3[1]
         root_dict['ad']["Max seq identity for the adpter in 3\'"] = "%.3f" % tuple_3[0]
         root_dict['ad']["Average trimmed length in 3\'"] = "%.3f" % np.mean(tuple_3[2])
+
+    if args.pb:
+        root_dict['pb'] = True
+
+    if args.sequel :
+        root_dict['sequel'] = True
 
     root_dict['rl'] = {'name': os.path.basename(fig_path),\
                       'stats':OrderedDict([\
@@ -418,10 +441,11 @@ if __name__ == "__main__":
     parser_run.set_defaults(handler=command_run)
 
     # run sample
-    presets = ["rs2", "sequel", "ont-ligation", "ont-rapid", "ont-1dsq"]
+    presets = ["rs2", "sequel", "ont-ligation", "ont-rapid", "ont-1dsq", "ont"]
     help_preset = 'a platform/kit to be evaluated. adapter and some ovlp parameters are automatically applied. ['+", ".join(presets)+'].'
     parser_sample = subparsers.add_parser('sampleqc', help='see `sampleqc -h`')
     parser_sample.add_argument('--pb', help='sample data from PacBio sequencers', dest = 'pb', action = 'store_true', default = None)
+    parser_sample.add_argument('--is_sequel', help='sample data from PacBio sequencers', dest = 'sequel', action = 'store_true', default = None)
     parser_sample.add_argument('--ont', help='sample data from ONT sequencers', dest = 'ont', action = 'store_true', default = None)
     parser_sample.add_argument('--adapter_5', help='adapter sequence for 5\'', dest = 'adp5', default = None)
     parser_sample.add_argument('--adapter_3', help='adapter sequence for 3\'', dest = 'adp3', default = None)
@@ -432,13 +456,14 @@ if __name__ == "__main__":
     parser_sample.add_argument('-s', '--sample_name', help='sample name is added as a suffix for each output file.', dest = 'suf', default = None)
     parser_sample.add_argument('-o', '--output', help='path for output directory', dest = 'out', required=True, default = None)
     parser_sample.add_argument('-t', '--trim_output', help='path for trimmed reads. If this is None, trimmed reads won\'t be saved.', dest = 'trim', default = None)
+    parser_sample.add_argument('-r', '--rna', help='sample data is RNA (or cDNA) sequences', dest = 'rna', action = 'store_true', default = None)
     parser_sample.add_argument('input', help='Input [fasta, fastq, or pbbam]', type=str)
     parser_sample.set_defaults(handler=command_sample)
 
     # help
-    parser_help = subparsers.add_parser('help', help='see `help -h`')
-    parser_help.add_argument('command', help='')
-    parser_help.set_defaults(handler=command_help)
+    #parser_help = subparsers.add_parser('help', help='see `help -h`')
+    #parser_help.add_argument('command', help='')
+    #parser_help.set_defaults(handler=command_help)
 
     args = parser.parse_args()
     main(args)
