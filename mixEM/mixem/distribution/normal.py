@@ -28,6 +28,11 @@ class NormalDistribution(Distribution):
     def __repr__(self):
         return "Norm[μ={mu:.4g}, σ={sigma:.4g}]".format(mu=self.mu, sigma=self.sigma)
 
+    def get_mu(self):
+        return self.mu
+
+    def get_sigma(self):
+        return self.sigma
 
 class MultivariateNormalDistribution(Distribution):
     """Multivariate normal distribution with parameters (mu, Sigma)."""
@@ -72,3 +77,9 @@ class MultivariateNormalDistribution(Distribution):
             np.set_printoptions(**po)
 
         return result
+
+    def get_mu(self):
+        return self.mu
+
+    def get_sigma(self):
+        return self.sigma

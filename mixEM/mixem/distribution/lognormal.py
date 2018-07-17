@@ -28,3 +28,9 @@ class LogNormalDistribution(Distribution):
     def __repr__(self):
         return "LogNormal[μ={mu:.4g}, σ={sigma:.4g}]".format(mu=self.mu, sigma=self.sigma)
 
+
+    def get_mu(self):
+        return self.mu
+
+    def get_sigma(self):
+        return self.sigma
