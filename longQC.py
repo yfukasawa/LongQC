@@ -187,7 +187,7 @@ def command_sample(args):
             args.adp5 = "AATGTACTTCGTTCAGTTACGTATTGCT"
             #args.adp3 = "GCAATACGTAACTGAACGAAGT"
             args.adp3 = "GCAATACGTAACTGAACG"
-            if args.rna:
+            if args.transcript:
                 args.miniargs = "-Y -k 12 -w 5 -l 0 -p 60 -q 160"
             else:
                 args.miniargs = "-Y -k 12 -w 5 -l 0 -p 160 -q 160"
@@ -321,7 +321,7 @@ def command_sample(args):
 
     # execute minimap2_coverage
     logger.info("Generating coverage related plots...")
-    lc = LqCoverage(cov_path, isRNA=args.rna, logger=logger)
+    lc = LqCoverage(cov_path, isTranscript=args.transcript, logger=logger)
     lc.plot_coverage_dist(fig_path_cv)
     lc.plot_unmapped_frac_terminal(fig_path_ta, adp5_pos=np.mean(tuple_5[2]) if args.adp5 and np.mean(tuple_5[2]) > 0 else None, adp3_pos=np.mean(tuple_3[2]) if args.adp3 and np.mean(tuple_3[2]) > 0 else None)
     lc.plot_qscore_dist(fig_path_qv)
@@ -333,9 +333,15 @@ def command_sample(args):
 
     tobe_json["Coverage_stats"] = {}
     tobe_json["Coverage_stats"]["Estimated non-sense read fraction"] = float(lc.get_unmapped_med_frac())
-    tobe_json["Coverage_stats"]["Mean_coverage"] = float(lc.get_mean())
-    tobe_json["Coverage_stats"]["SD_coverage"]   = float(lc.get_sd())
-    tobe_json["Coverage_stats"]["Estimated crude Xome size"] = str(lc.calc_genome_size(throughput))
+    if args.transcript:
+        tobe_json["Coverage_stats"]["Mode_coverage"] = float(lc.get_logn_mode())
+        tobe_json["Coverage_stats"]["mu_coverage"]   = float(lc.get_logn_mu())
+        tobe_json["Coverage_stats"]["sigma_coverage"]   = float(lc.get_logn_sigma())
+    else:
+        tobe_json["Coverage_stats"]["Mean_coverage"] = float(lc.get_mean())
+        tobe_json["Coverage_stats"]["SD_coverage"]   = float(lc.get_sd())
+    tobe_json["Coverage_stats"]["Estimated crude Xome size"] = str(lc.calc_xome_size(throughput))
+
     if args.pb == True:
         pass
         #tobe_json["Coverage_stats"]["Low quality read fraction"] = float(lc.get_unmapped_bad_frac() - lc.get_unmapped_med_frac())
@@ -383,13 +389,25 @@ def command_sample(args):
                                ('Mean read length', "%.3f" % mean_len),\
                                ('N50', "%.3f" % n50)])}
     root_dict['rq'] = {'name': os.path.basename(fig_path_rq)}
-    root_dict['rc'] = {'cov_plot_name': os.path.basename(fig_path_cv), 'cov_over_len_plot_name': os.path.basename(fig_path_cl),\
-                       'cov_ovlp_qv_plot_name': os.path.basename(fig_path_qv),\
-                       'stats':OrderedDict([\
-                                ('Number of sampled reads', s_n_seqs),\
-                                ('Mean per read coverage', "%.3f" % lc.get_mean()),\
-                                ('s.d. per read coverage', "%.3f" % lc.get_sd()), \
-                                            ('Crude estimated ome size', lc.calc_genome_size(throughput))])}
+
+    if args.transcript:
+        root_dict['rc'] = {'cov_plot_name': os.path.basename(fig_path_cv), 'cov_over_len_plot_name': os.path.basename(fig_path_cl),\
+                           'cov_ovlp_qv_plot_name': os.path.basename(fig_path_qv),\
+                           'stats':OrderedDict([\
+                                                ('Number of sampled reads', s_n_seqs),\
+                                                ('Mode of per read coverage', "%.3f" % lc.get_logn_mode()),\
+                                                ('mu of per read coverage', "%.3f" % lc.get_logn_mu()), \
+                                                ('sigma of per read coverage', "%.3f" % lc.get_logn_sigma()), \
+                                                ('Crude estimated Xome size', lc.calc_xome_size(throughput))])}
+    else:
+        root_dict['rc'] = {'cov_plot_name': os.path.basename(fig_path_cv), 'cov_over_len_plot_name': os.path.basename(fig_path_cl),\
+                           'cov_ovlp_qv_plot_name': os.path.basename(fig_path_qv),\
+                           'stats':OrderedDict([\
+                                                ('Number of sampled reads', s_n_seqs),\
+                                                ('Mean per read coverage', "%.3f" % lc.get_mean()),\
+                                                ('S.D. per read coverage', "%.3f" % lc.get_sd()), \
+                                                ('Crude estimated Xome size', lc.calc_xome_size(throughput))])}
+
     root_dict['gc'] = {'name': os.path.basename(fig_path_gc),\
                       'stats':OrderedDict([\
                                ('Mean per read GC content', "%.3f %%" % (100.0 * gc_read_mean)),\
@@ -455,8 +473,8 @@ if __name__ == "__main__":
     parser_sample.add_argument('-p', '--preset', choices=presets, help=help_preset, metavar='preset')
     parser_sample.add_argument('-s', '--sample_name', help='sample name is added as a suffix for each output file.', dest = 'suf', default = None)
     parser_sample.add_argument('-o', '--output', help='path for output directory', dest = 'out', required=True, default = None)
-    parser_sample.add_argument('-t', '--trim_output', help='path for trimmed reads. If this is None, trimmed reads won\'t be saved.', dest = 'trim', default = None)
-    parser_sample.add_argument('-r', '--rna', help='sample data is RNA (or cDNA) sequences', dest = 'rna', action = 'store_true', default = None)
+    parser_sample.add_argument('-c', '--trim_output', help='path for trimmed reads. If this is None, trimmed reads won\'t be saved.', dest = 'trim', default = None)
+    parser_sample.add_argument('-t', '--transcript', help='sample data comes from transcription such as RNA (or cDNA) sequences', dest = 'transcript', action = 'store_true', default = None)
     parser_sample.add_argument('input', help='Input [fasta, fastq, or pbbam]', type=str)
     parser_sample.set_defaults(handler=command_sample)
 
