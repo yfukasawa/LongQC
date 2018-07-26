@@ -64,7 +64,6 @@ def est_confidence_interval_mu(df, column_i, k=2, nbs=1000):
 """
 
 class LqCoverage:
-
     UNMAPPED_FRACTION_THRESHOLD = 0.4
     UNMAPPED_FRACTION_PARAM_MIN = 0.05
     UNMAPPED_FRACTION_PARAM_MAX = 0.2
@@ -87,6 +86,10 @@ class LqCoverage:
         self.mean_main = None
         self.cov_main  = None
         self.main_comp_index = None
+
+        # for final conclusion
+        self.warnings = []
+        self.errors = []
 
         # for transcript type data. e.g. direct RNA, cDNA, Iso-seq, etc
         self.mix_model = None
@@ -148,6 +151,12 @@ class LqCoverage:
         if self.unmapped_bad_frac == -1.0:
             self.logger.warning("Unmapped bad read fraction has no value. Do estimation first.")
         return self.unmapped_bad_frac
+
+    def get_errors(self):
+        return self.errors
+
+    def get_warnings(self):
+        return self.warnings
 
     def __est_coverage(self):
         self.unmapped_frac_trimmed   = self.df[LqCoverage.COVERAGE_COLUMN].values[np.where(self.df[LqCoverage.COVERAGE_COLUMN] == 0.0)].shape[0] \
@@ -328,11 +337,12 @@ class LqCoverage:
         if platform == 'ont':
             mid_threshold = 7 # ont
         else:
-            mid_threshold = 8 # pb
+            #id_threshold = 8 # obsolete
+            mid_threshold = 7 # we can use the same criterion for pb too.
         plt.grid(True)
         plt.boxplot([self.df[LqCoverage.QV_COLUMN].values[np.where(self.df[LqCoverage.COVERAGE_COLUMN] == 0.0)],
                      self.df[LqCoverage.QV_COLUMN].values[np.where(self.df[LqCoverage.COVERAGE_COLUMN] != 0.0)]])
-        plt.xticks([1,2], ["Non-OLP", "OLP"])
+        plt.xticks([1,2], ["Non-sense reads", "Normal reads"])
         ymin, ymax = plt.gca().get_ylim()
         #plt.axhspan(0,  5, facecolor='red', alpha=0.1)
         #plt.axhspan(5,  mid_threshold, facecolor='yellow', alpha=0.1)
@@ -369,9 +379,24 @@ class LqCoverage:
         #print(interval)
         #print(st.norm.ppf(0.2, loc=interval[0][1], scale=interval[1][0]))
 
+        self.__check_outlier_coverage(interval)
+
     def __gen_boxplot_length_vs_coverage(self, interval):
         self.df['Binned read length'] = np.floor(self.df[LqCoverage.QLENGTH_COLUMN].values/interval)
         return self.df.boxplot(column=LqCoverage.COVERAGE_COLUMN, by='Binned read length', sym='+', rot=90, figsize=(2*int(max(self.df['Binned read length'])/5+0.5), 4.8))
+
+    def __check_outlier_coverage(self, interval):
+        stats = self.df.groupby('Binned read length')[LqCoverage.COVERAGE_COLUMN].agg([np.median, np.size])
+        meds = stats['median'][np.where(stats['size']>=50)[0]]
+        three_sigma = np.where((meds > self.get_mean() + 3*self.get_sd()) | (meds <= self.get_mean() - 3*self.get_sd()))
+        if len(three_sigma[0]) > 0:
+            #error case
+            self.errors.append(('Coverage error', 'Coverage is not homogenous over the read length.'))
+        else:
+            two_sigma = np.where((meds > self.get_mean() + 2*self.get_sd()) | (meds <= self.get_mean() - 2*self.get_sd()))
+            if len(two_sigma[0]):
+                #warning
+                self.warnings.append(('Coverage warning', 'Coverage might not be homogenous over the read length.'))
 
     # est_coverage_dist sometimes return weird mu, maybe due to local maxima, so
     #  below method is an ugly working solution.
@@ -396,7 +421,7 @@ class LqCoverage:
 
     def __est_coverage_dist_lognorm_norm(self):
         #a little bit buggy
-        th_per    = self.df[LqCoverage.COVERAGE_COLUMN].quantile(0.75)
+        th_per    = self.df[LqCoverage.COVERAGE_COLUMN].quantile(0.85)
         if th_per == 0.0:
             th_per    = self.df[LqCoverage.COVERAGE_COLUMN].quantile(1.0)
         nonzeros  = self.df[LqCoverage.COVERAGE_COLUMN].values[np.nonzero(self.df[LqCoverage.COVERAGE_COLUMN])]
@@ -421,7 +446,7 @@ class LqCoverage:
             _b_i = [] # init
 
             #a little bit buggy
-            th_per = self.df[LqCoverage.COVERAGE_COLUMN].quantile(0.75)
+            th_per = self.df[LqCoverage.COVERAGE_COLUMN].quantile(0.85)
             if th_per == 0.0:
                 th_per    = self.df[LqCoverage.COVERAGE_COLUMN].quantile(1.0)
             nonzeros  = self.df[LqCoverage.COVERAGE_COLUMN].values[np.nonzero(self.df[LqCoverage.COVERAGE_COLUMN])]
@@ -497,7 +522,7 @@ class LqCoverage:
 # test
 if __name__ == "__main__":
 
-    lc = LqCoverage("/home/fukasay/analyses/longQC/longqc_sampleqc_minion_failed_ecoli/analysis/minimap2/coverage_out_ecoli_failed.txt", isTranscript=False)
+    lc = LqCoverage("/home/fukasay/analyses/longQC/longqc_sampleqc_minion_arabi_50per/analysis/minimap2/coverage_out.txt", isTranscript=False)
     lc.plot_coverage_dist()
     #lc.plot_unmapped_frac_terminal(adp5_pos=61, adp3_pos=30)
     #lc.plot_qscore_dist()
