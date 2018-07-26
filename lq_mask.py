@@ -35,6 +35,31 @@ class LqMask:
         self.tin  = []
         self.tout = []
 
+    def plot_qscore_dist(self, df, column_qv, column_length, *, fp=None, platform='ont', interval=3000):
+        if platform == 'ont':
+            mid_threshold = 7 # ont
+        else:
+            mid_threshold = 8 # pb
+        df['Binned read length'] = np.floor(df[column_length].values/interval)
+        df.boxplot(column=column_qv, by='Binned read length', sym='+', rot=90, figsize=(2*int(max(df['Binned read length'])/5+0.5), 4.8))
+        plt.grid(True)
+        xmin, xmax = plt.gca().get_xlim()
+        ymin, ymax = plt.gca().get_ylim()
+        plt.xticks(np.arange(xmax+1), [int(i) for i in np.arange(xmax+1)*interval])
+        plt.axhspan(0,  mid_threshold, facecolor='red', alpha=0.1)
+        #plt.axhspan(5,  mid_threshold, facecolor='yellow', alpha=0.1)
+        plt.axhspan(mid_threshold, ymax, facecolor='green', alpha=0.1)
+        #plt.boxplot(df[5].values[np.where(df[4] == 0.0)])
+        plt.ylim(0, ymax)
+        plt.ylabel('Averaged QV')
+        plt.title("")
+        plt.suptitle("")
+        if fp:
+            plt.savefig(fp, bbox_inches="tight")
+        else:
+            plt.show()
+        plt.close()
+
     def plot_masked_fraction(self, fp=None):
         self.df = pd.read_table(self.outf, sep='\t', header=None)
         plt.grid(True)
