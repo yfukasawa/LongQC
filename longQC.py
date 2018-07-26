@@ -17,9 +17,6 @@
 '''
 
 import sys, os, logging, json, argparse, shlex
-import matplotlib as mpl
-mpl.use('Agg')
-import matplotlib.pyplot as plt
 import numpy             as np
 import pandas as pd
 from time        import sleep
@@ -31,8 +28,8 @@ import lq_nanopore
 import lq_rs
 import lq_sequel
 
-from lq_gamma    import estimate_gamma_dist_scipy
-from lq_utils    import open_seq, get_N50, rgb, sample_random_fastq_list, write_fastq, get_Qx_bases, copytree
+from lq_gamma    import estimate_gamma_dist_scipy, plot_length_dist
+from lq_utils    import open_seq, get_N50, sample_random_fastq_list, write_fastq, get_Qx_bases, copytree
 from lq_adapt    import cut_adapter
 from lq_gcfrac   import plot_unmasked_gc_frac
 from lq_exec     import LqExec
@@ -58,61 +55,6 @@ def command_run(args):
 def command_help(args):
     print(parser.parse_args([args.command, '--help']))
 
-def plot_length_dist(fig_path, lengths, g_a, g_b, _max, _mean, _n50, isPb=False, b_width = 1000):
-    x = np.linspace(0, gamma.ppf(0.99, g_a, 0, g_b))
-    est_dist = gamma(g_a, 0, g_b)
-    plt.hist(lengths, histtype='step', bins=np.arange(min(lengths),_max + b_width, b_width), color=rgb(214,39,40), alpha=0.7, normed=True)
-    plt.grid(True)
-    plt.xlabel('Read length')
-    plt.ylabel('Probability density')
-    plt.axvline(x=_mean, linestyle='dashed', linewidth=2, color=rgb(214,39,40), alpha=0.8)
-    plt.axvline(x=_n50,  linewidth=2, color=rgb(214,39,40), alpha=0.8)
-    plt.xlim(0, gamma.ppf(0.99, g_a, 0, g_b))
-
-    ymin, ymax = plt.gca().get_ylim()
-    xmin, xmax = plt.gca().get_xlim()
-
-    if not isPb:
-        plt.text(xmax*0.6, ymax*0.72, r'$\alpha=%.3f,\ \beta=%.3f$' % (g_a, g_b) )
-        plt.text(xmax*0.6, ymax*0.77,  r'Gamma dist params:' )
-        plt.plot(x, est_dist.pdf(x), color=rgb(214,39,40) )
-
-    plt.text(xmax*0.6, ymax*0.85, r'sample mean: %.3f' % (_mean,) )
-    plt.text(xmax*0.6, ymax*0.9, r'N50: %.3f' % (_n50,) )
-
-    plt.text(_mean, ymax*0.85, r'Mean', color=rgb(214,39,40))
-    plt.text(_n50, ymax*0.9, r'N50', color=rgb(214,39,40))
-
-    plt.axis('tight')
-    plt.xlim(0, gamma.ppf(0.99, g_a, 0, g_b))
-    plt.savefig(fig_path, bbox_inches="tight")
-    #plt.show()
-    plt.close()
-
-def plot_qscore_dist(df, column_qv, column_length, *, fp=None, platform='ont', interval=3000):
-    if platform == 'ont':
-        mid_threshold = 7 # ont
-    else:
-        mid_threshold = 8 # pb
-    df['Binned read length'] = np.floor(df[column_length].values/interval)
-    df.boxplot(column=column_qv, by='Binned read length', sym='+', rot=90, figsize=(2*int(max(df['Binned read length'])/5+0.5), 4.8))
-    plt.grid(True)
-    xmin, xmax = plt.gca().get_xlim()
-    ymin, ymax = plt.gca().get_ylim()
-    plt.xticks(np.arange(xmax+1), [int(i) for i in np.arange(xmax+1)*interval])
-    plt.axhspan(0,  mid_threshold, facecolor='red', alpha=0.1)
-    #plt.axhspan(5,  mid_threshold, facecolor='yellow', alpha=0.1)
-    plt.axhspan(mid_threshold, ymax, facecolor='green', alpha=0.1)
-    #plt.boxplot(df[5].values[np.where(df[4] == 0.0)])
-    plt.ylim(0, ymax)
-    plt.ylabel('Averaged QV')
-    plt.title("")
-    plt.suptitle("")
-    if fp:
-        plt.savefig(fp, bbox_inches="tight")
-    else:
-        plt.show()
-    plt.close()
 
 def main(args):
     if hasattr(args, 'handler'):
@@ -130,6 +72,7 @@ def command_sample(args):
     cov_path_e  = os.path.join(args.out, "analysis", "minimap2", "coverage_err" + suffix + ".txt")
     sample_path = os.path.join(args.out, "analysis", "subsample" + suffix + ".fastq")
     log_path    = os.path.join(args.out, "logs", "log_longQC_sampleqc" + suffix + ".txt")
+
     fig_path    = os.path.join(args.out, "figs", "fig_longQC_sampleqc_length" + suffix + ".png")
     fig_path_rq = os.path.join(args.out, "figs", "fig_longQC_sampleqc_average_qv" + suffix + ".png")
     fig_path_ma = os.path.join(args.out, "figs", "fig_longQC_sampleqc_masked_region" + suffix + ".png")
@@ -215,7 +158,7 @@ def command_sample(args):
         fastx_path = args.input
 
     logger.info("Computation of the low complexity region started.")
-    lm = LqMask(reads, "/home/fukasay/Projects/minimap2_mod/sdust", args.out, suffix=suffix, n_proc=10)
+    lm = LqMask(reads, "/home/fukasay/Projects/minimap2_mod/sdust", args.out, suffix=suffix, n_proc=int(args.thread))
     lm.run_async_sdust()
     logger.info("Summary table %s was made." % lm.get_outfile_path())
     lm.plot_masked_fraction(fig_path_ma)
@@ -223,7 +166,8 @@ def command_sample(args):
     # list up seqs should be avoided
     df_mask      = pd.read_table(lm.get_outfile_path(), sep='\t', header=None)
     exclude_seqs = df_mask[(df_mask[2] > 500000) & (df_mask[3] > 0.2)][0].values.tolist() # len > 0.5M and mask_region > 20%. k = 15
-    exclude_seqs = exclude_seqs + df_mask[(df_mask[2] > 20000) & (df_mask[3] > 0.4)][0].values.tolist() # len > 0.02M and mask_region > 40%. k = 12. more severe.
+    #exclude_seqs = exclude_seqs + df_mask[(df_mask[2] > 20000) & (df_mask[3] > 0.4)][0].values.tolist() # len > 0.02M and mask_region > 40%. k = 12. more severe.
+    exclude_seqs = exclude_seqs + df_mask[(df_mask[2] > 10000) & (df_mask[3] > 0.4)][0].values.tolist() # len > 0.01M and mask_region > 40%. k = 12. more severe.
     logger.debug("Highly masked seq list:\n%s" % "\n".join(exclude_seqs) )
     (sreads, s_n_seqs, s_n_bases) = sample_random_fastq_list(reads, args.nsample, elist=exclude_seqs)
     logger.info('sequence sampling finished. #seqs:%d, #bases: %d, #n_sample: %f' % (s_n_seqs, s_n_bases, float(args.nsample)))
@@ -241,9 +185,6 @@ def command_sample(args):
 
     if len(lengths) == 0:
         lengths = [len(r[1]) for r in reads]
-
-    # length distribution. a ~= 1.0 is usual (exponential dist).
-    (a, b) = estimate_gamma_dist_scipy(lengths, logger)
     
     throughput = np.sum(lengths)
     longest    = np.max(lengths)
@@ -251,13 +192,18 @@ def command_sample(args):
     n50        = get_N50(lengths)
 
     if n50 < 3000:
-        plot_qscore_dist(df_mask, 4, 2, interval=n50/2, fp=fig_path_rq)
+        lm.plot_qscore_dist(df_mask, 4, 2, interval=n50/2, fp=fig_path_rq)
     else:
-        plot_qscore_dist(df_mask, 4, 2, fp=fig_path_rq)
+        lm.plot_qscore_dist(df_mask, 4, 2, fp=fig_path_rq)
+
+    # length distribution. a ~= 1.0 is usual (exponential dist).
+    (a, b) = estimate_gamma_dist_scipy(lengths, logger)
+    plot_length_dist(fig_path, lengths, a, b, longest, mean_len, n50, True if args.pb else False)
+    logger.info("Genarated the sample read length plot.")
 
     # asynchronized
     le = LqExec("/home/fukasay/Projects/minimap2_mod/minimap2-coverage", logger=logger)
-    le_args = shlex.split("%s -t %d %s %s" % (args.miniargs, int(args.minit), fastx_path, sample_path))
+    le_args = shlex.split("%s -t %d %s %s" % (args.miniargs, int(args.thread), fastx_path, sample_path))
     le.exec(*le_args, out=cov_path, err=cov_path_e)
 
     logger.info("Overlap computation started. Process is %s" % le.get_pid())
@@ -275,9 +221,6 @@ def command_sample(args):
     tobe_json["Length_stats"]["Mean_read_length"] = float(mean_len)
     tobe_json["Length_stats"]["N50_read_length"]  = float(n50)
 
-    plot_length_dist(fig_path, lengths, a, b, longest, mean_len, n50, True if args.pb else False)
-    logger.info("Genarated the sample read length plot.")
-
     (gc_read_mean, gc_read_sd) = plot_unmasked_gc_frac(reads, logger=logger, fp=fig_path_gc)
     logger.info("Genarated the sample gc fraction plot.")
 
@@ -285,6 +228,10 @@ def command_sample(args):
     tobe_json["GC_stats"]["Mean_GC_content"] = gc_read_mean
     tobe_json["GC_stats"]["SD_GC_content"]   = gc_read_sd
 
+    if args.adp5 or args.adp3:
+        logger.info("Adapter search is starting.")
+
+    """
     if args.adp5 and args.adp3:
         (tuple_5, tuple_3) = cut_adapter(reads, adp_t=args.adp5, adp_b=args.adp3, logger=logger)
     elif not args.adp5 and args.adp3:
@@ -298,16 +245,20 @@ def command_sample(args):
         tobe_json["Stats_for_adapter5"]["Num_of_trimmed_reads_5"] = tuple_5[1]
         tobe_json["Stats_for_adapter5"]["Max_identity_adp5"] = tuple_5[0]
         tobe_json["Stats_for_adapter5"]["Average_position_from_5_end"] = np.mean(tuple_5[2])
+        logger.info("Adapter search for 5\' end is done.")
 
     if tuple_3:
         tobe_json["Stats_for_adapter3"] = {}
         tobe_json["Stats_for_adapter3"]["Num_of_trimmed_reads_3"] = tuple_3[1]
         tobe_json["Stats_for_adapter3"]["Max_identity_adp3"] = tuple_3[0]
         tobe_json["Stats_for_adapter3"]["Average_position_from_3_end"] = np.mean(tuple_3[2])
+        logger.info("Adapter search for 3\' end is done.")
 
     # trimmed reads by edlib are saved as fastq
     if args.trim:
         write_fastq(args.trim, reads)
+        logger.info("Trimmed read generated.")
+    """
 
     # here wait until the minimap procerss finishes
     while True:
@@ -323,7 +274,7 @@ def command_sample(args):
     logger.info("Generating coverage related plots...")
     lc = LqCoverage(cov_path, isTranscript=args.transcript, logger=logger)
     lc.plot_coverage_dist(fig_path_cv)
-    lc.plot_unmapped_frac_terminal(fig_path_ta, adp5_pos=np.mean(tuple_5[2]) if args.adp5 and np.mean(tuple_5[2]) > 0 else None, adp3_pos=np.mean(tuple_3[2]) if args.adp3 and np.mean(tuple_3[2]) > 0 else None)
+    lc.plot_unmapped_frac_terminal(fig_path_ta, adp5_pos=np.mean(tuple_5[2]) if tuple_5 and np.mean(tuple_5[2]) > 0 else None, adp3_pos=np.mean(tuple_3[2]) if tuple_3 and np.mean(tuple_3[2]) > 0 else None)
     lc.plot_qscore_dist(fig_path_qv)
     if n50 < 3000:
         lc.plot_length_vs_coverage(fig_path_cl, interval=n50/2)
@@ -353,7 +304,15 @@ def command_sample(args):
     logger.info("Generated a json summary.")
 
     root_dict = {}
-    root_dict['stats']  = OrderedDict([('Sample name', suffix.replace('_', '')), ('Yield', int(throughput)), ('Number of reads', len(lengths))])
+
+    root_dict['stats']  = OrderedDict()
+    if suffix == "":
+        root_dict['stats']['Sample name'] = "-"
+    else:
+        root_dict['stats']['Sample name'] = suffix.replace('_', '')
+    root_dict['stats']['Yield'] = int(throughput)
+    root_dict['stats']['Number of reads'] = len(lengths)
+
     if args.sequel:
         root_dict['stats']['Q7 bases'] = "-"
     else:
@@ -416,6 +375,31 @@ def command_sample(args):
     root_dict['fr'] = {'name': os.path.basename(fig_path_ta)}
     root_dict['sc'] = {'name': os.path.basename(fig_path_ma)}
 
+    # alerts
+    root_dict['warns'] = OrderedDict()
+    root_dict['errors'] = OrderedDict()
+    if q7/throughput <= 0.65 and q7/throughput > 0.5:
+        root_dict['warns']['Low Q7'] = 'This value should be higher than 65%.'
+    elif q7/throughput <= 0.5:
+        root_dict['errors']['Too low Q7'] = 'This value should be higher than 50%. Ideally, higher than 65%.'
+
+    if lc.get_unmapped_med_frac() >= 0.3 and lc.get_unmapped_med_frac() < 0.4:
+        root_dict['warns']['High non-sense read fraction'] = 'This value should be lower than 30%.'
+    elif lc.get_unmapped_med_frac() >= 0.4:
+        root_dict['errors']['Too high non-sense read fraction'] = 'This value should not be higher than 40%.'
+
+    if tuple_5 and not args.pb:
+        if tuple_5[1]/len(lengths) <= 0.3:
+            root_dict['warns']['Low number of adapter hits in 5\''] = 'This value should be higher than 30% if adapter sequences were not removed.'
+
+    if lc.get_errors():
+        for e in lc.get_errors():
+            root_dict['errors'][e[0]] = e[1]
+
+    if lc.get_warnings():
+        for w in lc.get_warnings():
+            root_dict['warns'][w[0]] = w[1]
+
     env = Environment(loader=FileSystemLoader('./', encoding='utf8'))
     tpl = env.get_template('./web_summary/web_summary.tpl.html')
     html = tpl.render( root_dict )
@@ -459,7 +443,7 @@ if __name__ == "__main__":
     parser_run.set_defaults(handler=command_run)
 
     # run sample
-    presets = ["rs2", "sequel", "ont-ligation", "ont-rapid", "ont-1dsq", "ont"]
+    presets = ["rs2", "sequel", "ont-ligation", "ont-rapid", "ont-1dsq"]
     help_preset = 'a platform/kit to be evaluated. adapter and some ovlp parameters are automatically applied. ['+", ".join(presets)+'].'
     parser_sample = subparsers.add_parser('sampleqc', help='see `sampleqc -h`')
     parser_sample.add_argument('--pb', help='sample data from PacBio sequencers', dest = 'pb', action = 'store_true', default = None)
@@ -469,12 +453,12 @@ if __name__ == "__main__":
     parser_sample.add_argument('--adapter_3', help='adapter sequence for 3\'', dest = 'adp3', default = None)
     parser_sample.add_argument('--n_sample', help='the number/fraction of sequences for sampling.', type=int, dest = 'nsample', default = 10000)
     parser_sample.add_argument('--minimap2_args', help='the arguments for minimap2.', dest = 'miniargs', default = '-Y -k 12 -w 5')
-    parser_sample.add_argument('--minimap2_thread', help='the number of threads for sequences for minimap2.', dest = 'minit', default = 50)
+    parser_sample.add_argument('--thread', help='the number of threads for LongQC analysis', dest = 'thread', default = 30)
     parser_sample.add_argument('-p', '--preset', choices=presets, help=help_preset, metavar='preset')
+    parser_sample.add_argument('-t', '--transcript', help='Present for sample data coming from transcription such as RNA (or cDNA) sequences', dest = 'transcript', action = 'store_true', default = None)
     parser_sample.add_argument('-s', '--sample_name', help='sample name is added as a suffix for each output file.', dest = 'suf', default = None)
     parser_sample.add_argument('-o', '--output', help='path for output directory', dest = 'out', required=True, default = None)
     parser_sample.add_argument('-c', '--trim_output', help='path for trimmed reads. If this is None, trimmed reads won\'t be saved.', dest = 'trim', default = None)
-    parser_sample.add_argument('-t', '--transcript', help='sample data comes from transcription such as RNA (or cDNA) sequences', dest = 'transcript', action = 'store_true', default = None)
     parser_sample.add_argument('input', help='Input [fasta, fastq, or pbbam]', type=str)
     parser_sample.set_defaults(handler=command_sample)
 
