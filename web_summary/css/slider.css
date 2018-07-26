@@ -4,6 +4,8 @@
     border: none;
     text-align: left;
     outline: none;
+    margin-top: 5px;
+    margin-bottom: 5px;
 }
 
 .btn-lg:hover {
@@ -38,6 +40,13 @@
     font-weight: bold;
 }
 
+
+.alert {
+    width: 800px;
+    margin-top: 25px;
+    margin-bottom: 25px;
+}
+
 .error{
     display: inline-block;
     text-align: center;
@@ -68,6 +77,55 @@
 }
 
 .warn:before{
-    content: "\00A1";
+    content: "!";
     font-weight: bold;
+    color: #C00;
+}
+
+dl {
+  width: 100%;
+  border-bottom: 1px solid #ccc;
+}
+
+dt {
+  clear: left;
+  float: left;
+  width: 60%;
+  border-top: 1px solid #ccc;
+}
+
+dd {
+  margin-left: 60%;
+  width: 40%;
+  text-align: right;
+  border-top: 1px solid #ccc;
+}
+
+dl.help-content {
+  margin-top: 10px;
+}
+
+dt.help-content {
+  width: 100%;
+  float: left;
+  border-top: 1px solid #ccc;
+}
+
+dd.help-content {
+  margin-left: 0%;
+  width: 100%;
+  text-align: left;
+  border-top: 0px solid #ccc;
+}
+
+.help-item {
+    display: none;
+    margin-top: 35px;
+    margin-bottom: 20px;
+    border: 1px solid #999;
+    padding-top: 10px;
+    padding-bottom: 10px;
+    padding-left: 10px;
+    padding-right: 10px;
+    box-shadow: 5px 5px 20px -10px;
 }

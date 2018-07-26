@@ -80,19 +80,50 @@
                   <div id="menu"></div>
 		</a>
                 <h1>QC Summary {{ suffix }}</h1>
+		{% if errors %}
+		<div class="alert alert-danger">
+		  <span class="symbol error">
+		  </span>
+  		  <strong>Serious problems were observed.</strong> 
+            	  <a href="#" class="close" data-dismiss="alert" aria-label="close">&times;</a>
+		  {% for k, v in errors.items() %}
+		  <p> {{k}} -> {{v}} </p>
+		  {% endfor %}
+
+		  {% if warns %}
+		  {% for k, v in warns.items() %}
+		  <p> {{k}} -> {{v}} </p>
+		  {% endfor %}
+		  {% endif %}
+		</div>
+		{% endif %}
+
+		{% if warns and not errors %}
+		<div class="alert alert-warning">
+		  <span class="symbol warn">
+		  </span>
+  		  <strong>Please be aware of some issues. Quality of downstream analysis might be affected.</strong>
+            	  <a href="#" class="close" data-dismiss="alert" aria-label="close">&times;</a>
+		  {% for k, v in warns.items() %}
+		  <p> {{k}} -> {{v}} </p>
+		  {% endfor %}
+		</div>
+		{% endif %}
+
 		<button class="btn btn-lg active" data-slide="gs">General Statistics</button>
 		<div class="item-in-pagecontent gs" id="">
 		  <div class="help" data-help="gsh"></div>
-		  <div class="help-item gsh" style="display: none;">Help! I need somebody!
+		  <div class="help-item gsh">
+		    <dl class="help-content">
+		      <dt class="help-content">Sample name</dt><dd class="help-content">Name specified by -s option</dd>
+		      <dt class="help-content">Yield</dt><dd class="help-content">The number of total bases</dd>
+		      <dt class="help-content">Number of reads</dt><dd class="help-content">The number of total reads</dd>
+		      <dt class="help-content">Q7 bases</dt><dd class="help-content">The fraction of bases having 7 or higher QV</dd>
+		      <dt class="help-content">Longest read</dt><dd class="help-content">Length of the longest read</dd>
+		      <dt class="help-content">Estimated non-sense read fraction</dt><dd class="help-content">The fraction of random sequences. Should be less than 30%. These are unmappable to target sample genome and also any contaminated genomes. If there is an ignorable discrepancy between this and mapping rate, please be aware of contamination possibility. </dd>
+		    </dl>
 		  </div>
 		  <h2 id="GS">General statistics</h2>
-		  {% if success %}
-		  <div class="alert alert-success">
-		    <span class="symbol error">
-            	    <a href="#" class="close" data-dismiss="alert" aria-label="close">&times;</a>
-  		    <strong>Success!</strong> Indicates a successful or positive action.
-		  </div>
-		  {% endif %}
 		  <dl>
 		    {% for key, value in stats.items() %}
 		    <dt>{{ key }}</dt><dd>{{ value }}</dd>
@@ -108,16 +139,15 @@
 		<div class="item-in-pagecontent ad" id="">
 		{% endif %}
 		  <div class="help" data-help="adh"></div>
-		  <div class="help-item adh" style="display: none;">Help! I need somebody!
+		  <div class="help-item adh">
+		    This panel is hidden in default for PacBio data as PacBio sequencers automatically trim adapter sequencers. Adapter sequences for PacBio are stored in their raw data file such as bax5 or scraps.bam.
+		    <dl class="help-content">
+		      <dt class="help-content">Number of trimmed reads</dt><dd class="help-content">The number of reads having adapter like (75% or higher identity) sequences in either terminals. If this is unexpectedly low and trimming was not conducted, it infers that adapter ligation step had some problems.</dd>
+		      <dt class="help-content">Max seq identity</dt><dd class="help-content">Maximum value of identity between adapter sequence and sequences. This value should be quite high (90%); otherwise, </dd>
+		      <dt class="help-content">Average trimmed length</dt><dd class="help-content">The average end position of aligned sequences. This should be consisent with the kit description and peak in the flanking region analysis plots.</dd>
+		    </dl>
 		  </div>
 		  <h2 id="AD">Adapter statistics</h2>
-		  {% if success %}
-		  <div class="alert alert-success">
-		    <span class="symbol warn">
-            	    <a href="#" class="close" data-dismiss="alert" aria-label="close">&times;</a>
-  		    <strong>Success!</strong> Indicates a successful or positive action.
-		  </div>
-		  {% endif %}
 		  <dl>
 		    {% for key, value in ad.items() %}
 		    <dt>{{ key }}</dt><dd>{{ value }}</dd>
@@ -129,7 +159,14 @@
 		<button class="btn btn-lg active" data-slide="rl">Read length</button>
 		<div class="item-in-pagecontent rl" id="">
 		  <div class="help" data-help="rlh"></div>
-		  <div class="help-item rlh" style="display: none;">Help! I need somebody!
+		  <div class="help-item rlh">
+		    This panel shows a typical length distribution for reads. Typical genome sequencing data from third generation sequencers show unimodal exponential
+		    distribution, therefore, alpha parameter of Gamma dstribution ranges &lt; 2. </br>
+		    Transcript sequencing, strictly size selected or highly fragmented data show higher alpha value shifting to right.</br>
+		    <dl class="help-content">
+		      <dt class="help-content">Mean read length</dt><dd class="help-content">Expected read length from the sample data</dd>
+		      <dt class="help-content">N50</dt><dd class="help-content">This is N50 of sample reads.</dd>
+		    </dl>
 		  </div>
 		  <h2 id="RL">Read length</h2>
 		  <img src="figs/{{ rl.name }}">
@@ -149,7 +186,10 @@
 		<div class="item-in-pagecontent rq" id="">
 		{% endif %}
 		  <div class="help" data-help="rqh"></div>
-		  <div class="help-item rqh" style="display: none;">Help! I need somebody!
+		  <div class="help-item rqh">
+		    This panel shows distibution of QV per read if QV is given in the file. Threshold is set to 7.
+		    Ideally, both short and long reads should have similar distributions and median should be higher than 7.
+		    It is noteworthy that x-axis is not the positions of reads but binned length of reads.
 		  </div>
 		  <h2 id="RQ">Per read QV</h2>
 		  <img src="figs/{{ rq.name }}">
@@ -159,7 +199,7 @@
 		<button class="btn btn-lg active" data-slide="rc">Per Read Coverage</button>
 		<div class="item-in-pagecontent rc" id="">
 		  <div class="help" data-help="rch"></div>
-		  <div class="help-item rch" style="display: none;">Help! I need somebody!
+		  <div class="help-item rch">Help! I need somebody!
 		  </div>
 		  <h2 id="RC">Per read coverage</h2>
 		  <img src="figs/{{ rc.cov_plot_name}}">
@@ -176,7 +216,13 @@
 		<button class="btn btn-lg active" data-slide="gc">GC contents</button>
 		<div class="item-in-pagecontent gc" id="">
 		  <div class="help" data-help="gch"></div>
-		  <div class="help-item gch" style="display: none;">Help! I need somebody!
+		  <div class="help-item gch">
+		    GC content is shown in this panel. These distributions are computed from the same data.
+		    Blue one comes from entire reads, and red one is computed from chunked subsequences.
+		    Blue one should show sharper distribution, becase it should have smaller deviation because of longer sequences.
+		    However, read level GC content distribution can look slightly different in another data.
+		    Red one is more robust to sequencing or sample differences, and this should be comparable to other data if the same target (e.g. biological replicates) is sequenced.
+		    Although GC content is not nessesarily consistent with Gaussian distribution, mean and standard deviation are shown.
 		  </div>
 		  <h2 id="GC">GC contents</h2>
 		  <img src="figs/{{ gc.name }}">
@@ -191,7 +237,11 @@
 		<button class="btn btn-lg active" data-slide="fr">Flanking region analysis</button>
 		<div class="item-in-pagecontent fr" id="">
 		  <div class="help" data-help="flh"></div>
-		  <div class="help-item flh" style="display: none;">Help! I need somebody!
+		  <div class="help-item flh">
+		    These plots can be used to check ligation of specific sequences like adapters and removal of them.
+		    If there is no artificial sequences like adapter, peak should be shown at 0 in both plots (and some steep slope from 0 can be observed).
+		    Otherwise, characteristic pattern should be observed according to applications.
+		    If adapter like sequences are observed, average length is plotted as a dashed red line.
 		  </div>
 		  <h2 id="FR">Flanking region analysis</h2>
 		  <img src="figs/{{ fr.name }}">

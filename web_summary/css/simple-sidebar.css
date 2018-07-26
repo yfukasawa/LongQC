@@ -148,21 +148,3 @@ div.item-in-pagecontent{
   font-size: 14px;
   position: relative;
 }
-
-dl {
-  width: 100%;
-  border-bottom: 1px solid #ccc;
-}
-dt {
-  clear: left;
-  float: left;
-  width: 60%;
-  border-top: 1px solid #ccc;
-}
-
-dd {
-  margin-left: 60%;
-  width: 40%;
-  text-align: right;
-  border-top: 1px solid #ccc;
-}
