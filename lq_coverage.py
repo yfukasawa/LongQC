@@ -67,6 +67,7 @@ class LqCoverage:
     UNMAPPED_FRACTION_THRESHOLD = 0.4
     UNMAPPED_FRACTION_PARAM_MIN = 0.05
     UNMAPPED_FRACTION_PARAM_MAX = 0.2
+    COV_CORRECTION              = 0.9 # experimental term.
     QLENGTH_COLUMN  = 1
     N_MBASE_COLUMN  = 2
     MED_READ_COV_CORS = 4
@@ -188,7 +189,7 @@ class LqCoverage:
 
         if self.unmapped_frac_med >= LqCoverage.UNMAPPED_FRACTION_THRESHOLD:
             self.logger.warning("The fraction of zero coverage read is high %.3f" % self.unmapped_frac_med)
-            self.min_lambda = -1 * math.log(self.unmapped_frac_med - LqCoverage.UNMAPPED_FRACTION_PARAM_MIN)
+            self.min_lambda = -1 * math.log(self.unmapped_frac_med - LqCoverage.UNMAPPED_FRACTION_PARAM_MIN) 
             self.max_lambda = -1 * math.log(self.unmapped_frac_med - LqCoverage.UNMAPPED_FRACTION_PARAM_MAX)
             range_str = str(self.min_lambda) + "-" + str(self.max_lambda)
             self.logger.warning("If and only if the data is healthy, very rough estimated coverage range is %s." % range_str)
@@ -274,9 +275,9 @@ class LqCoverage:
 
     def calc_xome_size(self, throughput):
         if self.unmapped_frac_trimmed >= LqCoverage.UNMAPPED_FRACTION_THRESHOLD or (self.low_coverage and not self.isTranscript):
-            # poission est
-            _s1 = throughput / self.min_lambda
-            _s2 = throughput / self.max_lambda
+            # poission est + empirical correction
+            _s1 = throughput * LqCoverage.COV_CORRECTION * (1 - LqCoverage.UNMAPPED_FRACTION_PARAM_MIN) / self.min_lambda
+            _s2 = throughput * LqCoverage.COV_CORRECTION * (1 - LqCoverage.UNMAPPED_FRACTION_PARAM_MAX) / self.max_lambda
             return "%d (non-sense rate = 20%%) < x < %d (non-sense rate = 5%%)" % (_s2, _s1)
         else:
             if self.isTranscript:
