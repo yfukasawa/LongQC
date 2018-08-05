@@ -87,6 +87,8 @@ def command_sample(args):
 
     df_mask = None
     tuple_5 = tuple_3 = None
+    minimap2_params = ''
+    minimap2_med_score_threshold = 0
 
     # output_path will be made too.
     if not os.path.isdir(os.path.join(args.out, "analysis", "minimap2")):
@@ -114,36 +116,38 @@ def command_sample(args):
 
     if args.preset:
         p = args.preset
-        if p == 'rs2':
+        if p == 'pb-rs2':
             args.pb = True
             args.adp5 = "ATCTCTCTCTTTTCCTCCTCCTCCGTTGTTGTTGTTGAGAGAGAT"
             args.adp3 = "ATCTCTCTCTTTTCCTCCTCCTCCGTTGTTGTTGTTGAGAGAGAT"
-            args.miniargs = "-Y -k 12 -w 5 -l 0 -p 80 -q 160"
-        elif p == 'sequel':
+            minimap2_params = "-Y -k 12 -w 5 -l 0 -q 160"
+            minimap2_med_score_threshold = 80
+        elif p == 'pb-sequel':
             args.pb = True
             args.sequel = True
             args.adp5 = "ATCTCTCTCAACAACAACAACGGAGGAGGAGGAAAAGAGAGAGAT"
             args.adp3 = "ATCTCTCTCAACAACAACAACGGAGGAGGAGGAAAAGAGAGAGAT"
-            args.miniargs = "-Y -k 12 -w 5 -l 0 -p 80 -q 160"
+            minimap2_params = "-Y -k 12 -w 5 -l 0 -q 160"
+            minimap2_med_score_threshold = 80
         elif p == 'ont-ligation':
             args.ont = True
             args.adp5 = "AATGTACTTCGTTCAGTTACGTATTGCT"
             #args.adp3 = "GCAATACGTAACTGAACGAAGT"
             args.adp3 = "GCAATACGTAACTGAACG"
-            if args.transcript:
-                args.miniargs = "-Y -k 12 -w 5 -l 0 -p 60 -q 160"
-            else:
-                args.miniargs = "-Y -k 12 -w 5 -l 0 -p 160 -q 160"
+            minimap2_params = "-Y -k 12 -w 5 -l 0 -q 160"
+            minimap2_med_score_threshold = 160
         elif p == 'ont-rapid':
             args.ont = True
             args.adp5 = "GTTTTCGCATTTATCGTGAAACGCTTTCGCGTTTTTCGTGCGCCGCTTCA"
-            args.miniargs = "-Y -k 12 -w 5 -l 0 -p 160 -q 160"
+            minimap2_params = "-Y -k 12 -w 5 -l 0 -q 160"
+            minimap2_med_score_threshold = 160
         elif p == 'ont-1dsq':
             args.ont = True
             args.adp5 = "GGCGTCTGCTTGGGTGTTTAACCTTTTTGTCAGAGAGGTTCCAAGTCAGAGAGGTTCCT"
             args.adp3 = "GGAACCTCTCTGACTTGGAACCTCTCTGACAAAAAGGTTAAACACCCAAGCAGACGCCAGCAAT"
-            args.miniargs = "-Y -k 12 -w 5 -l 0 -p 160 -q 160"
-        logger.info("Preset \"%s\" was applied. Options --pb(--ont), --adapter_[53], --minimap2_args were overwritten." % (p,))
+            minimap2_params = "-Y -k 12 -w 5 -l 0 -q 160"
+            minimap2_med_score_threshold = 160
+        logger.info("Preset \"%s\" was applied. Options --pb(--ont), --adapter_[53] were overwritten." % (p,))
 
     (file_format_code, reads, n_seqs, n_bases) = open_seq(args.input)
     logger.info('Input file parsing was finished. #seqs:%d, #bases: %d' % (n_seqs, n_bases))
@@ -166,7 +170,7 @@ def command_sample(args):
     # list up seqs should be avoided
     df_mask      = pd.read_table(lm.get_outfile_path(), sep='\t', header=None)
     exclude_seqs = df_mask[(df_mask[2] > 500000) & (df_mask[3] > 0.2)][0].values.tolist() # len > 0.5M and mask_region > 20%. k = 15
-    #exclude_seqs = exclude_seqs + df_mask[(df_mask[2] > 20000) & (df_mask[3] > 0.4)][0].values.tolist() # len > 0.02M and mask_region > 40%. k = 12. more severe.
+    #exclude_seqs = df_mask[(df_mask[2] > 100) & (df_mask[3] > 0.1)][0].values.tolist() # len > 0.5M and mask_region > 20%. k = 15
     exclude_seqs = exclude_seqs + df_mask[(df_mask[2] > 10000) & (df_mask[3] > 0.4)][0].values.tolist() # len > 0.01M and mask_region > 40%. k = 12. more severe.
     logger.debug("Highly masked seq list:\n%s" % "\n".join(exclude_seqs) )
     (sreads, s_n_seqs, s_n_bases) = sample_random_fastq_list(reads, args.nsample, elist=exclude_seqs)
@@ -191,6 +195,10 @@ def command_sample(args):
     mean_len   = np.array(lengths).mean()
     n50        = get_N50(lengths)
 
+    # exceptionally short case.
+    if n50 < 1000 or float(len(np.where(np.asarray(lengths)< 1000)[0]))/len(lengths) > 0.25:
+        minimap2_med_score_threshold = 60
+
     if n50 < 3000:
         lm.plot_qscore_dist(df_mask, 4, 2, interval=n50/2, fp=fig_path_rq)
     else:
@@ -203,7 +211,7 @@ def command_sample(args):
 
     # asynchronized
     le = LqExec("/home/fukasay/Projects/minimap2_mod/minimap2-coverage", logger=logger)
-    le_args = shlex.split("%s -t %d %s %s" % (args.miniargs, int(args.thread), fastx_path, sample_path))
+    le_args = shlex.split("%s -p %d -t %d %s %s" % (minimap2_params, int(minimap2_med_score_threshold), int(args.thread), fastx_path, sample_path))
     le.exec(*le_args, out=cov_path, err=cov_path_e)
 
     logger.info("Overlap computation started. Process is %s" % le.get_pid())
@@ -231,7 +239,6 @@ def command_sample(args):
     if args.adp5 or args.adp3:
         logger.info("Adapter search is starting.")
 
-    """
     if args.adp5 and args.adp3:
         (tuple_5, tuple_3) = cut_adapter(reads, adp_t=args.adp5, adp_b=args.adp3, logger=logger)
     elif not args.adp5 and args.adp3:
@@ -258,7 +265,6 @@ def command_sample(args):
     if args.trim:
         write_fastq(args.trim, reads)
         logger.info("Trimmed read generated.")
-    """
 
     # here wait until the minimap procerss finishes
     while True:
@@ -378,10 +384,12 @@ def command_sample(args):
     # alerts
     root_dict['warns'] = OrderedDict()
     root_dict['errors'] = OrderedDict()
-    if q7/throughput <= 0.65 and q7/throughput > 0.5:
-        root_dict['warns']['Low Q7'] = 'This value should be higher than 65%.'
-    elif q7/throughput <= 0.5:
-        root_dict['errors']['Too low Q7'] = 'This value should be higher than 50%. Ideally, higher than 65%.'
+
+    if not args.sequel:
+        if q7/throughput <= 0.65 and q7/throughput > 0.5:
+            root_dict['warns']['Low Q7'] = 'This value should be higher than 65%.'
+        elif q7/throughput <= 0.5:
+            root_dict['errors']['Too low Q7'] = 'This value should be higher than 50%. Ideally, higher than 65%.'
 
     if lc.get_unmapped_med_frac() >= 0.3 and lc.get_unmapped_med_frac() < 0.4:
         root_dict['warns']['High non-sense read fraction'] = 'This value should be lower than 30%.'
@@ -443,7 +451,7 @@ if __name__ == "__main__":
     parser_run.set_defaults(handler=command_run)
 
     # run sample
-    presets = ["rs2", "sequel", "ont-ligation", "ont-rapid", "ont-1dsq"]
+    presets = ["pb-rs2", "pb-sequel", "ont-ligation", "ont-rapid", "ont-1dsq"]
     help_preset = 'a platform/kit to be evaluated. adapter and some ovlp parameters are automatically applied. ['+", ".join(presets)+'].'
     parser_sample = subparsers.add_parser('sampleqc', help='see `sampleqc -h`')
     parser_sample.add_argument('--pb', help='sample data from PacBio sequencers', dest = 'pb', action = 'store_true', default = None)
@@ -452,7 +460,7 @@ if __name__ == "__main__":
     parser_sample.add_argument('--adapter_5', help='adapter sequence for 5\'', dest = 'adp5', default = None)
     parser_sample.add_argument('--adapter_3', help='adapter sequence for 3\'', dest = 'adp3', default = None)
     parser_sample.add_argument('--n_sample', help='the number/fraction of sequences for sampling.', type=int, dest = 'nsample', default = 10000)
-    parser_sample.add_argument('--minimap2_args', help='the arguments for minimap2.', dest = 'miniargs', default = '-Y -k 12 -w 5')
+    #parser_sample.add_argument('--minimap2_args', help='the arguments for minimap2.', dest = 'miniargs', default = '-Y -k 12 -w 5')
     parser_sample.add_argument('--thread', help='the number of threads for LongQC analysis', dest = 'thread', default = 30)
     parser_sample.add_argument('-p', '--preset', choices=presets, help=help_preset, metavar='preset')
     parser_sample.add_argument('-t', '--transcript', help='Present for sample data coming from transcription such as RNA (or cDNA) sequences', dest = 'transcript', action = 'store_true', default = None)
