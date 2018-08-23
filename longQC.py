@@ -68,6 +68,7 @@ def command_sample(args):
     else:
         suffix = ""
 
+    path_minimap2 = ""
     cov_path    = os.path.join(args.out, "analysis", "minimap2", "coverage_out" + suffix + ".txt")
     cov_path_e  = os.path.join(args.out, "analysis", "minimap2", "coverage_err" + suffix + ".txt")
     sample_path = os.path.join(args.out, "analysis", "subsample" + suffix + ".fastq")
@@ -162,7 +163,7 @@ def command_sample(args):
         fastx_path = args.input
 
     logger.info("Computation of the low complexity region started.")
-    lm = LqMask(reads, "/home/fukasay/Projects/minimap2_mod/sdust", args.out, suffix=suffix, n_proc=int(args.thread))
+    lm = LqMask(reads, os.path.join(path_minimap2, "sdust"), args.out, suffix=suffix, n_proc=10 if int(args.thread) > 10 else int(args.thread))
     lm.run_async_sdust()
     logger.info("Summary table %s was made." % lm.get_outfile_path())
     lm.plot_masked_fraction(fig_path_ma)
@@ -170,7 +171,6 @@ def command_sample(args):
     # list up seqs should be avoided
     df_mask      = pd.read_table(lm.get_outfile_path(), sep='\t', header=None)
     exclude_seqs = df_mask[(df_mask[2] > 500000) & (df_mask[3] > 0.2)][0].values.tolist() # len > 0.5M and mask_region > 20%. k = 15
-    #exclude_seqs = df_mask[(df_mask[2] > 100) & (df_mask[3] > 0.1)][0].values.tolist() # len > 0.5M and mask_region > 20%. k = 15
     exclude_seqs = exclude_seqs + df_mask[(df_mask[2] > 10000) & (df_mask[3] > 0.4)][0].values.tolist() # len > 0.01M and mask_region > 40%. k = 12. more severe.
     logger.debug("Highly masked seq list:\n%s" % "\n".join(exclude_seqs) )
     (sreads, s_n_seqs, s_n_bases) = sample_random_fastq_list(reads, args.nsample, elist=exclude_seqs)
@@ -196,8 +196,9 @@ def command_sample(args):
     n50        = get_N50(lengths)
 
     # exceptionally short case.
-    if n50 < 1000 or float(len(np.where(np.asarray(lengths)< 1000)[0]))/len(lengths) > 0.25:
-        minimap2_med_score_threshold = 60
+    if args.ont:
+        if n50 < 1000 or float(len(np.where(np.asarray(lengths)< 1000)[0]))/len(lengths) > 0.25:
+            minimap2_med_score_threshold = 60
 
     if n50 < 3000:
         lm.plot_qscore_dist(df_mask, 4, 2, interval=n50/2, fp=fig_path_rq)
@@ -210,7 +211,7 @@ def command_sample(args):
     logger.info("Genarated the sample read length plot.")
 
     # asynchronized
-    le = LqExec("/home/fukasay/Projects/minimap2_mod/minimap2-coverage", logger=logger)
+    le = LqExec(os.path.join(path_minimap2, "minimap2-coverage"), logger=logger)
     le_args = shlex.split("%s -p %d -t %d %s %s" % (minimap2_params, int(minimap2_med_score_threshold), int(args.thread), fastx_path, sample_path))
     le.exec(*le_args, out=cov_path, err=cov_path_e)
 
@@ -290,6 +291,8 @@ def command_sample(args):
 
     tobe_json["Coverage_stats"] = {}
     tobe_json["Coverage_stats"]["Estimated non-sense read fraction"] = float(lc.get_unmapped_med_frac())
+    tobe_json["Coverage_stats"]["Reliable Highly diverged fraction"] = float(lc.get_high_div_frac())
+
     if args.transcript:
         tobe_json["Coverage_stats"]["Mode_coverage"] = float(lc.get_logn_mode())
         tobe_json["Coverage_stats"]["mu_coverage"]   = float(lc.get_logn_mu())
@@ -319,7 +322,7 @@ def command_sample(args):
     root_dict['stats']['Yield'] = int(throughput)
     root_dict['stats']['Number of reads'] = len(lengths)
 
-    if args.sequel:
+    if args.sequel or  file_format_code == 3: # fasta has no qual
         root_dict['stats']['Q7 bases'] = "-"
     else:
         root_dict['stats']['Q7 bases'] = "%.3f%%" % float(100*q7/throughput)
@@ -327,6 +330,9 @@ def command_sample(args):
 
     if lc.get_unmapped_med_frac():
         root_dict['stats']['Estimated non-sense read fraction'] = "%.3f" % float(lc.get_unmapped_med_frac())
+
+    if lc.get_high_div_frac():
+        root_dict['stats']['Reliable Highly diverged fraction'] = "%.3f" % float(lc.get_high_div_frac())
 
     if args.pb == True:
         pass
@@ -385,7 +391,7 @@ def command_sample(args):
     root_dict['warns'] = OrderedDict()
     root_dict['errors'] = OrderedDict()
 
-    if not args.sequel:
+    if not args.sequel and  file_format_code != 3: # fasta has no qual
         if q7/throughput <= 0.65 and q7/throughput > 0.5:
             root_dict['warns']['Low Q7'] = 'This value should be higher than 65%.'
         elif q7/throughput <= 0.5:
@@ -408,8 +414,9 @@ def command_sample(args):
         for w in lc.get_warnings():
             root_dict['warns'][w[0]] = w[1]
 
-    env = Environment(loader=FileSystemLoader('./', encoding='utf8'))
-    tpl = env.get_template('./web_summary/web_summary.tpl.html')
+    template_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "web_summary")
+    env = Environment(loader=FileSystemLoader(template_dir, encoding='utf8'))
+    tpl = env.get_template('web_summary.tpl.html')
     html = tpl.render( root_dict )
     with open(html_path, "wb") as f:
         f.write(html.encode('utf-8'))
@@ -419,9 +426,9 @@ def command_sample(args):
         os.makedirs(os.path.join(args.out, "vendor"), exist_ok=True)
     if not os.path.isdir(os.path.join(args.out, "figs")):
         os.makedirs(os.path.join(args.out, "figs"), exist_ok=True)
-    copytree('./web_summary/css', os.path.join(args.out, "css"))
-    copytree('./web_summary/vendor', os.path.join(args.out, "vendor"))
-    copytree('./web_summary/figs', os.path.join(args.out, "figs"))
+    copytree(os.path.join(template_dir, 'css'), os.path.join(args.out, "css"))
+    copytree(os.path.join(template_dir, 'vendor'), os.path.join(args.out, "vendor"))
+    copytree(os.path.join(template_dir, 'figs'), os.path.join(args.out, "figs"))
     logger.info("Generated a summary html.")
 
     logger.info("Finished all processes.")
@@ -454,15 +461,15 @@ if __name__ == "__main__":
     presets = ["pb-rs2", "pb-sequel", "ont-ligation", "ont-rapid", "ont-1dsq"]
     help_preset = 'a platform/kit to be evaluated. adapter and some ovlp parameters are automatically applied. ['+", ".join(presets)+'].'
     parser_sample = subparsers.add_parser('sampleqc', help='see `sampleqc -h`')
+    #parser_sample.add_argument('--minimap2_args', help='the arguments for minimap2.', dest = 'miniargs', default = '-Y -k 12 -w 5')
     parser_sample.add_argument('--pb', help='sample data from PacBio sequencers', dest = 'pb', action = 'store_true', default = None)
-    parser_sample.add_argument('--is_sequel', help='sample data from PacBio sequencers', dest = 'sequel', action = 'store_true', default = None)
+    parser_sample.add_argument('--is_sequel', help='sample data from Sequel of PacBio', dest = 'sequel', action = 'store_true', default = None)
     parser_sample.add_argument('--ont', help='sample data from ONT sequencers', dest = 'ont', action = 'store_true', default = None)
     parser_sample.add_argument('--adapter_5', help='adapter sequence for 5\'', dest = 'adp5', default = None)
     parser_sample.add_argument('--adapter_3', help='adapter sequence for 3\'', dest = 'adp3', default = None)
-    parser_sample.add_argument('--n_sample', help='the number/fraction of sequences for sampling.', type=int, dest = 'nsample', default = 10000)
-    #parser_sample.add_argument('--minimap2_args', help='the arguments for minimap2.', dest = 'miniargs', default = '-Y -k 12 -w 5')
-    parser_sample.add_argument('--thread', help='the number of threads for LongQC analysis', dest = 'thread', default = 30)
-    parser_sample.add_argument('-p', '--preset', choices=presets, help=help_preset, metavar='preset')
+    parser_sample.add_argument('-p', '--ncpu', help='the number of cpus for LongQC analysis', dest = 'thread', default = 30)
+    parser_sample.add_argument('-n', '--n_sample', help='the number/fraction of sequences for sampling.', type=int, dest = 'nsample', default = 10000)
+    parser_sample.add_argument('-x', '--preset', choices=presets, help=help_preset, metavar='preset')
     parser_sample.add_argument('-t', '--transcript', help='Present for sample data coming from transcription such as RNA (or cDNA) sequences', dest = 'transcript', action = 'store_true', default = None)
     parser_sample.add_argument('-s', '--sample_name', help='sample name is added as a suffix for each output file.', dest = 'suf', default = None)
     parser_sample.add_argument('-o', '--output', help='path for output directory', dest = 'out', required=True, default = None)
