@@ -1,6 +1,9 @@
 import sys, os, pysam, shutil
 import numpy  as np
 
+from logging import getLogger
+logger = getLogger(__name__)
+
 # https://stackoverflow.com/questions/5574702/how-to-print-to-stderr-in-python
 def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
@@ -37,13 +40,26 @@ def get_NXX(vals, target=90):
         cnt += x
         if cnt >= t: return x
 
+def open_seq_chunk(fn, file_code, is_upper=False, chunk_size=500*1024**2): # default 500MB
+    #file_code = guess_format(fn)
+    if file_code == 0:
+        yield from parse_bam_chunk(fn, chunk_size, is_sequel=True, is_upper=is_upper)
+    elif file_code == 1:
+        logger.error("SAM is not supported.")
+        return -1
+    elif file_code == 2 or file_code == 3:
+        yield from parse_fastx_chunk(fn, chunk_size, is_upper=is_upper)
+    else:
+        logger.error("The input file format is unknown and not supported yet.")
+        return -1
+
 def open_seq(fn):
     file_code = guess_format(fn)
     if file_code == 0:
         (reads, n_seqs, n_bases) =  parse_bam(fn, is_sequel=True)
         return (file_code, reads, n_seqs, n_bases)
     elif file_code == 1:
-        eprint("Sorry. SAM is not supported.")
+        logger.error("Sorry. SAM is not supported.")
         return -1
     elif file_code == 2:
         (reads, n_seqs, n_bases) = parse_fastx(fn)
@@ -52,7 +68,7 @@ def open_seq(fn):
         (reads, n_seqs, n_bases) = parse_fastx(fn)
         return (file_code, reads, n_seqs, n_bases)
     else:
-        eprint("Sorry. the input file format is unknown and not supported.")
+        logger.error("Sorry. the input file format is unknown and not supported.")
         return -1
 
 # 0->bam, 1->sam, 2->fastq, 3->fasta, -1->error
@@ -60,12 +76,12 @@ def guess_format(fn):
     try:
         fh = open(fn, 'rb')
     except:
-        eprint("Error: cannot open %s" % fn)
+        logger.error("cannot open %s" % fn)
 
     try:
         majic = os.read(fh.fileno(), 4)
     except:
-        eprint("Error: cannot read %s" % fn)
+        logger.error("cannot read %s" % fn)
 
     # pybam and/or biopython way
     if majic == 'BAM\1':
@@ -81,7 +97,7 @@ def guess_format(fn):
     try:
         fh = open(fn, 'r')
     except:
-        eprint("Error: cannot open %s" % fn)
+        logger.error("cannot open %s" % fn)
 
     # assume sam, fastx
     at_line_cnt = 0
@@ -140,6 +156,59 @@ def parse_bam(fn, *, is_sequel=True):
         reads.append( [e.query_name, e.query_sequence, qual_33] )
 
     return (reads, n_seqs, n_bases)
+
+def parse_bam_chunk(fn, cs, is_sequel=True, is_upper=False):
+    reads   = []
+    n_seqs  = 0
+    n_bases = 0
+    size = 0
+    # basically for sequel
+    input_bam = pysam.AlignmentFile(fn, 'rb', check_sq=False)
+    for e in input_bam:
+        n_seqs  += 1
+        n_bases += len(e.query_sequence)
+        if is_sequel:
+            qual_33 = '!' * e.query_length
+        else:
+            qual_33 = "".join([chr(q+33) for q in e.query_qualities])
+        if is_upper:
+            reads.append( [e.query_name, e.query_sequence.upper(), qual_33] )
+        else:
+            reads.append( [e.query_name, e.query_sequence, qual_33] )
+        size += sys.getsizeof(e.query_name) + sys.getsizeof(e.query_sequence) + sys.getsizeof(qual_33)
+        if size >= cs:
+            yield (reads, n_seqs, n_bases)
+            size  = 0
+            reads = []
+    yield (reads, n_seqs, n_bases)
+
+def parse_fastx_chunk(fn, cs, is_upper=False):
+    reads   = []
+    n_seqs  = 0
+    n_bases = 0
+    size = 0
+    with pysam.FastxFile(fn) as f:
+        for e in f:
+            a = []
+            if e.quality:
+                if is_upper:
+                    reads.append( [e.name, e.sequence.upper(), e.quality] )
+                else:
+                    reads.append( [e.name, e.sequence, e.quality] )
+                size += sys.getsizeof(e.name) + sys.getsizeof(e.sequence) + sys.getsizeof(e.quality)
+            else:
+                if is_upper:
+                    reads.append( [e.name, e.sequence.upper(), "!"*len(e.sequence)] )
+                else:
+                    reads.append( [e.name, e.sequence, "!"*len(e.sequence)] )
+                size += sys.getsizeof(e.name) + sys.getsizeof(e.sequence) + sys.getsizeof("!"*len(e.sequence))
+            n_seqs  += 1
+            n_bases += len(e.sequence)
+            if size >= cs:
+                yield (reads, n_seqs, n_bases)
+                size  = 0
+                reads = []
+    yield (reads, n_seqs, n_bases)
 
 def parse_fastx(fn):
     reads   = []
@@ -202,20 +271,66 @@ def __parse_fasta(fn):
             reads.append( [name, seq] )
     return (reads, n_seqs, n_bases)
 
-def write_fastq(fn, reads):
-    if(os.path.isfile(fn)):
-        eprint("Error: the file %s already exists." % fn)
-        return 1
+def write_fastq(fn, reads, is_chunk=False):
+    if(is_chunk==False and os.path.isfile(fn)):
+        logger.error("the file %s already exists." % fn)
+        return None
 
     try:
         reads[0]
     except IndexError:
-        eprint("Error: No read to be output")
-        return
+        logger.error("No read to be output")
+        return None
 
-    with open(fn, 'w') as fq:
+    # due to chunking, write mode was changed to a.
+    mode = 'a' if is_chunk else 'w'
+    with open(fn, mode) as fq:
         for r in reads:
             fq.write("@%s\n%s\n+\n%s\n" % tuple(r))
+
+    return True
+
+def subsample_from_chunk(chunk, cum_n_seq, s_reads, param, s_seed=7, elist=None):
+    frac    = 0.
+    num     = 0
+    n_seqs  = cum_n_seq
+    k = 0
+
+    if param >= 1.:
+        num = param
+        if not s_reads:
+            s_reads = [0] * num
+    else:
+        frac = param
+        a = []
+
+    np.random.seed(seed=s_seed)
+    h = np.random.uniform(size = len(chunk)+1)
+        
+    for read in chunk:
+        h = np.random.uniform(size = len(chunk)+1)
+        name = read[0]
+        seq  = read[1]
+        qual = read[2]
+        if elist and name in elist:
+            #print("%s is skipped." % name)
+            continue
+        n_seqs  += 1
+        if num:
+            if(n_seqs - 1 < num):
+                d = n_seqs-1
+            else:
+                d = int(h[k]*n_seqs)
+            if(d < num):
+                s_reads[d] = [name, seq, qual]
+        elif( h[k] < frac):
+            a.append([name, seq, qual])
+        k += 1
+
+    if num:
+        return s_reads
+    else:
+        return s_reads + a
 
 # follow the logic flow of seqtk
 # 2018/4/30 added exclude list. This is an ad-hoc way, and violates sampling schema. but let's see.
@@ -227,7 +342,7 @@ def sample_random_fastq_list(reads, param, *, s_seed=7, elist=None):
     s_n_bases = 0
     s_reads   = []
 
-    if param > 1.:
+    if param >= 1.:
         num = param
         s_reads = [0] * num
     else:
@@ -292,7 +407,7 @@ def sample_random_fastq(fn, param, *, s_seed=7, elist=None):
             qual = next(fq).strip()
             #n_bases += len(seq)
             if elist and name in elist:
-                #eprint("%s is skipped." % name)
+                #logger.error("%s is skipped." % name)
                 continue
             n_seqs  += 1
             if num:
@@ -316,6 +431,11 @@ def sample_random_fastq(fn, param, *, s_seed=7, elist=None):
 # test
 if __name__ == "__main__":
     # some test code here
-    code = guess_format("/home/fukasay/analyses/ont/minimap2_mapping/Hai1D_albacore213_1dsq_map.sam")
-    print(code)
+    #code = guess_format("/home/fukasay/analyses/ont/minimap2_mapping/Hai1D_albacore213_1dsq_map.sam")
+    #print(code)
 
+    fn = "/home/fukasay/rawdata/pb/rs2_ecoli_pacbio_official/ecoli_pacbio_p6c4.subreads.bam"
+    (c, reads, n_seqs, n_bases) = open_seq(fn)
+    print(len(reads), n_seqs, n_bases)
+    #for (reads, n_seqs, n_bases) in open_seq_chunk(fn, guess_format(fn), 0.25*1024**3):
+    #    print(len(reads), n_seqs, n_bases)
