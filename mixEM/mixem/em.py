@@ -3,7 +3,7 @@ import numpy as np
 from .progress import logged_simple_progress
 
 
-def em(data, distributions, initial_weights=None, max_iterations=100, tol=1e-15, tol_iters=10, progress_callback=logged_simple_progress, logger=None):
+def em(data, distributions, initial_weights=None, max_iterations=100, tol=1e-15, tol_iters=10, progress_callback=logged_simple_progress):
     """Fit a mixture of probability distributions using the Expectation-Maximization (EM) algorithm.
 
     :param data: The data to fit the distributions for. Can be an array-like or a :class:`numpy.ndarray`
@@ -63,7 +63,7 @@ def em(data, distributions, initial_weights=None, max_iterations=100, tol=1e-15,
         weight = np.mean(resp, axis=0)
 
         if progress_callback:
-            progress_callback(iteration, weight, distributions, log_likelihood, logger=logger)
+            progress_callback(iteration, weight, distributions, log_likelihood)
 
         # Convergence check #######
         if np.isnan(log_likelihood):

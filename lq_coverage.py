@@ -6,11 +6,13 @@ import matplotlib as mpl
 #mpl.use('Agg')
 import matplotlib.pyplot as plt
 
-#from scipy.stats   import gumbel_r
 from sklearn  import mixture
 from operator import itemgetter
 from scipy.signal import argrelmax
 from mixEM import mixem
+
+from logging import getLogger
+logger = getLogger(__name__)
 
 """
 #### deprecated
@@ -78,7 +80,7 @@ class LqCoverage:
     QV_COLUMN = 7
     DIV_COLUMN = 8
 
-    def __init__(self, table_path, isTranscript=False, logger=None):
+    def __init__(self, table_path, isTranscript=False):
         self.df = pd.read_table(table_path, sep='\t', header=None)
         self.min_lambda = None
         self.max_lambda = None
@@ -103,63 +105,54 @@ class LqCoverage:
         self.sigma_logn_main = None
         
         self.isTranscript = isTranscript
-        if logger:
-            self.logger = logger
-        else:
-            self.logger = logging.getLogger(__name__)
-            self.logger.setLevel(logging.INFO)
-            sh = logging.StreamHandler()
-            formatter = logging.Formatter('%(module)s:%(asctime)s:%(lineno)d:%(levelname)s:%(message)s')
-            sh.setFormatter(formatter)
-            self.logger.addHandler(sh)
-
-        self.logger.info("Estimating coverage distribution..")
+        
+        logger.info("Estimating coverage distribution..")
         self.__est_coverage()
-        self.logger.info("Estimation of coverage distribution finished.")
+        logger.info("Estimation of coverage distribution finished.")
 
     def get_mean(self):
         if not self.mean_main:
-            self.logger.warning("Mean has no value. Do estimation first.")
+            logger.warning("Mean has no value. Do estimation first.")
         return self.mean_main
 
     def get_sd(self):
         if not self.cov_main:
-            self.logger.warning("SD has no value. Do estimation first.")
+            logger.warning("SD has no value. Do estimation first.")
         return np.sqrt(self.cov_main)
 
     def get_logn_mode(self):
         if not self.mode_logn_main:
-            self.logger.warning("Mode of lognormal has no value. Do estimation first.")
+            logger.warning("Mode of lognormal has no value. Do estimation first.")
         return self.mode_logn_main
 
     def get_logn_mu(self):
         if not self.mu_logn_main:
-            self.logger.warning("Mu of lognormal has no value. Do estimation first.")
+            logger.warning("Mu of lognormal has no value. Do estimation first.")
         return self.mu_logn_main
 
     def get_logn_sigma(self):
         if not self.sigma_logn_main:
-            self.logger.warning("sigma of lognormal has no value. Do estimation first.")
+            logger.warning("sigma of lognormal has no value. Do estimation first.")
         return self.sigma_logn_main
 
     def get_unmapped_frac(self):
         if self.unmapped_frac_trimmed == -1.0:
-            self.logger.warning("Unmapped fraction has no value. Do estimation first.")
+            logger.warning("Unmapped fraction has no value. Do estimation first.")
         return self.unmapped_frac_trimmed
 
     def get_unmapped_med_frac(self):
         if self.unmapped_frac_med == -1.0:
-            self.logger.warning("Unmapped medial fraction has no value. Do estimation first.")
+            logger.warning("Unmapped medial fraction has no value. Do estimation first.")
         return self.unmapped_frac_med
 
     def get_unmapped_bad_frac(self):
         if self.unmapped_bad_frac == -1.0:
-            self.logger.warning("Unmapped bad read fraction has no value. Do estimation first.")
+            logger.warning("Unmapped bad read fraction has no value. Do estimation first.")
         return self.unmapped_bad_frac
 
     def get_high_div_frac(self):
         if self.high_div_frac == -1.0:
-            self.logger.warning("Highly divergent read fraction has no value. Do estimation first.")
+            logger.warning("Highly divergent read fraction has no value. Do estimation first.")
         return self.high_div_frac
 
     def get_errors(self):
@@ -182,7 +175,7 @@ class LqCoverage:
                                                 (self.df[LqCoverage.COVERAGE_COLUMN] >= LqCoverage.COV_THRESHOLD_FOR_DIV_SC) & \
                                                 (self.df[LqCoverage.MED_READ_COV_CORS] != '0') )].shape[0] \
                                        / self.df.shape[0]
-        #self.logger.info("Unmapped fraction: %.3f (naive), %.3f (coverage considered)" % (self.unmapped_frac_untrimmed, self.unmapped_frac_trimmed))
+        #logger.info("Unmapped fraction: %.3f (naive), %.3f (coverage considered)" % (self.unmapped_frac_untrimmed, self.unmapped_frac_trimmed))
 
         model_main_comp = self.__est_coverage_dist_gmm(k_i=2)
         self.model = model_main_comp[0]
@@ -202,23 +195,23 @@ class LqCoverage:
         self.low_coverage = self.__looks_lowcoverage(raw_hist)
 
         if self.unmapped_frac_med >= LqCoverage.UNMAPPED_FRACTION_THRESHOLD:
-            self.logger.warning("The fraction of zero coverage read is high %.3f" % self.unmapped_frac_med)
+            logger.warning("The fraction of zero coverage read is high %.3f" % self.unmapped_frac_med)
             self.min_lambda = -1 * math.log(self.unmapped_frac_med - LqCoverage.UNMAPPED_FRACTION_PARAM_MIN) 
             self.max_lambda = -1 * math.log(self.unmapped_frac_med - LqCoverage.UNMAPPED_FRACTION_PARAM_MAX)
             range_str = str(self.min_lambda) + "-" + str(self.max_lambda)
-            self.logger.warning("If and only if the data is healthy, very rough estimated coverage range is %s." % range_str)
+            logger.warning("If and only if the data is healthy, very rough estimated coverage range is %s." % range_str)
 
         # skewed dist. sometimes occur in low coverage data
         if self.low_coverage and self.unmapped_frac_med < LqCoverage.UNMAPPED_FRACTION_THRESHOLD and not self.isTranscript:
-            self.logger.warning("The fraction of zero coverage read is not too high %.3f, but still looks low coverage" % self.unmapped_frac_med)
+            logger.warning("The fraction of zero coverage read is not too high %.3f, but still looks low coverage" % self.unmapped_frac_med)
             self.min_lambda = -1 * math.log(self.unmapped_frac_med - LqCoverage.UNMAPPED_FRACTION_PARAM_MIN)
             self.max_lambda = -1 * math.log(self.unmapped_frac_med - LqCoverage.UNMAPPED_FRACTION_PARAM_MAX)
             range_str = str(self.min_lambda) + "-" + str(self.max_lambda)
-            self.logger.warning("If and only if the data is healthy, very rough estimated coverage range is %s." % range_str)
+            logger.warning("If and only if the data is healthy, very rough estimated coverage range is %s." % range_str)
 
         # RNA and long tail case
         if self.isTranscript:
-            self.logger.warning("Distribution looks long tail RNA type coverage. Apply lognorm.")
+            logger.warning("Distribution looks long tail RNA type coverage. Apply lognorm.")
             self.__est_coverage_dist_lognorm_norm()
             self.mode_logn_main = np.exp(self.mix_model[1][1] - self.mix_model[2][1]**2*0.5)
             self.mu_logn_main = self.mix_model[1][1]
@@ -324,7 +317,7 @@ class LqCoverage:
         plt.figure(figsize=(12,5))
         plt.subplot(1,2,1)
         t5l, t3l, il = self.__region_analysis(3, 1)
-        self.logger.info("Coordinates of coverage analysis were parsed.")
+        logger.info("Coordinates of coverage analysis were parsed.")
 
         plt.hist(t5l, alpha=0.2, bins=np.arange(0, x_max, 5), color='green')
         plt.xlim(0,x_max)
@@ -464,7 +457,7 @@ class LqCoverage:
         weights, distributions, ll = mixem.em(nonzeros[nonzeros < th_per], [
             mixem.distribution.NormalDistribution(self.model.means_[i_bg][0], np.sqrt(self.model.covariances_[i_bg][0][0])), # for noise
             mixem.distribution.LogNormalDistribution(np.log(self.model.means_[i_m][0]), 1) # for true
-        ], max_iterations=500, logger=self.logger)
+        ], max_iterations=500)
 
         self.mix_model = (weights, [d.get_mu() for d in distributions], [d.get_sigma() for d in distributions])
 
@@ -486,14 +479,14 @@ class LqCoverage:
             m_f   = mixture.GaussianMixture(n_components=k).fit(nonzeros[nonzeros < th_per].reshape(-1,1),1)
             
             #m_f   = mixture.GaussianMixture(n_components=k).fit(self.df[LqCoverage.COVERAGE_COLUMN].values[np.nonzero(self.df[LqCoverage.COVERAGE_COLUMN])].reshape(-1,1),1)
-            self.logger.debug(m_f)
+            logger.debug(m_f)
             order = m_f.weights_/[e[0] for inner in m_f.covariances_ for e in inner] # w/\sigma
             ratio = np.array([e for i in m_f.means_ for e in i])/np.array([e[0] for i in m_f.covariances_ for e in i])
             #weird_components = [i for i, v in enumerate(ratio) if v > 1] # sqrt(mu) > sigma
 
-            self.logger.info("The order of componens %s " % " ".join([str(v) for v in order]) )
-            self.logger.info("Means of components: %s k=%d" % (" ".join([str(e) for i in m_f.means_ for e in i]), k))
-            self.logger.info("Covariances of components: %s k=%d" % (" ".join([str(e[0]) for inner in m_f.covariances_ for e in inner]), k))
+            logger.info("The order of componens %s " % " ".join([str(v) for v in order]) )
+            logger.info("Means of components: %s k=%d" % (" ".join([str(e) for i in m_f.means_ for e in i]), k))
+            logger.info("Covariances of components: %s k=%d" % (" ".join([str(e[0]) for inner in m_f.covariances_ for e in inner]), k))
 
             _max = -1*np.inf
             for i,v in enumerate(order):
@@ -543,7 +536,7 @@ class LqCoverage:
             elif(len(regs) == 1):
                 (s, e) = regs[0]
             else:
-                self.logger.warning("The number of region is weird." )
+                logger.warning("The number of region is weird." )
 
             if s != None and e != None:
                 t3 = int(ql) - int(e)

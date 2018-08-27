@@ -7,6 +7,9 @@ import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
 
+from logging import getLogger
+logger = getLogger(__name__)
+
 def calc_ll(vals, a, b):
     return np.sum( np.log( dgamma.pdf(vals, a, loc=0, scale=1/b) ) )
 
@@ -38,12 +41,11 @@ def estimate_gamma_dist_minka(vals, verbose=1):
     return (a, b)
 
 # simply call scipy method
-def estimate_gamma_dist_scipy(vals, logger=None):
+def estimate_gamma_dist_scipy(vals):
     # shifting can happen (e.g. size selection of DNA fragments), but tentatively ignores this.
     alpha_hat, loc_hat, beta_hat = gamma.fit(vals, floc=0.0)
 
-    if logger:
-        logger.info("estimated Gamma dist params are a = %f, b = %f." % (alpha_hat, beta_hat))
+    logger.info("estimated Gamma dist params are a = %f, b = %f." % (alpha_hat, beta_hat))
 
     return (alpha_hat, beta_hat)
 

@@ -1,20 +1,14 @@
-import sys, os, logging
+import sys, os
 from subprocess import Popen, PIPE
+
+from logging import getLogger
+logger = getLogger(__name__)
 
 class LqExec:
 
-    def __init__(self, bin_path, logger=None):
+    def __init__(self, bin_path, ncpu=1):
         self.bin_path = bin_path
         self.proc = None
-        if logger:
-            self.logger = logger
-        else:
-            self.logger = logging.getLogger(__name__)
-            logger.setLevel(logging.INFO)
-            sh = logging.StreamHandler()
-            formatter = logging.Formatter('%(module)s:%(asctime)s:%(lineno)d:%(levelname)s:%(message)s')
-            sh.setFormatter(formatter)
-            logger.addHandler(sh)
 
     def exec(self, *args, out=None, err=None):
         if not out:
@@ -27,11 +21,10 @@ class LqExec:
             ferr = open(err, "w")
         try:
             self.proc = Popen([self.bin_path] + list(args), stdout=fout, stderr=ferr)
-            if self.logger:
-                _arg = [self.bin_path] + list(args)
-                command = " ".join([str(i) for i in list(args)])
-                self.logger.info("below command is executed: %s" % command)
-                self.logger.info("%s is started." % self.bin_path)
+            _arg = [self.bin_path] + list(args)
+            command = " ".join([str(i) for i in list(args)])
+            logger.info("below command is executed: %s" % command)
+            logger.info("%s is started." % self.bin_path)
         except OSError as e:
             logger.error(e)
             if out:
@@ -49,11 +42,10 @@ class LqExec:
         try:
             self.proc = Popen([self.bin_path] + list(args), stdout=PIPE, stderr=PIPE, stdin=PIPE)
             (stdout, stderr) = self.proc.communicate(input=inp)
-            if self.logger:
-                _arg = [self.bin_path] + list(args)
-                command = " ".join([str(i) for i in list(args)])
-                self.logger.info("below command is executed: %s" % command)
-                self.logger.info("%s is started." % self.bin_path)
+            _arg = [self.bin_path] + list(args)
+            command = " ".join([str(i) for i in list(args)])
+            logger.info("below command is executed: %s" % command)
+            logger.info("%s is started." % self.bin_path)
             print(stdout, stderr)
         except OSError as e:
             logger.error(e)
