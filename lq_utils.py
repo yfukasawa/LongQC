@@ -299,6 +299,7 @@ def subsample_from_chunk(chunk, cum_n_seq, s_reads, param, s_seed=7, elist=None)
     if param >= 1.:
         num = param
         if not s_reads:
+            logger.info("list for subsample is not initialized. Initializing now.")
             s_reads = [0] * num
     else:
         frac = param
@@ -308,7 +309,6 @@ def subsample_from_chunk(chunk, cum_n_seq, s_reads, param, s_seed=7, elist=None)
     h = np.random.uniform(size = len(chunk)+1)
         
     for read in chunk:
-        h = np.random.uniform(size = len(chunk)+1)
         name = read[0]
         seq  = read[1]
         qual = read[2]
