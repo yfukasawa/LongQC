@@ -61,7 +61,7 @@ class LqGC:
         dens_chunk = gaussian_kde(self.c_frac)
         logger.info("Kernel density estimation done for chunked read GC composition")
         plt.grid(True)
-        xs = np.linspace(0,1.0,200)
+        xs = np.linspace(0,1.0,50)
         if dens_read:
             plt.plot(xs, dens_read(xs), label="GC fraction read")
         plt.plot(xs, dens_chunk(xs), label="GC fraction of chunked read "+"("+str(self.chunk_size)+ "bp)")
@@ -76,9 +76,15 @@ class LqGC:
         else:
             plt.show()
         plt.close()
+
+        # bw param (https://stackoverflow.com/questions/23630515/getting-bandwidth-used-by-scipys-gaussian-kde-function)
+        # to reproduce plots, we need not only bw but also data points. mmm, tentatively skip.
+        #rtn_list.append(dens_read.covariance_factor()*np.array(self.r_frac).std())
+        #rtn_list.append(dens_chunk.covariance_factor()*np.array(self.c_frac).std())
         return rtn_list
 
     """
+    # deprecated
     def calc_masked_chunk_read_gc_frac(self, reads, chunk_size=300, th=0.2):
         tot     = 0
         tot_gc  = 0
@@ -200,7 +206,7 @@ class LqGC:
 
 # test
 if __name__ == "__main__":
-    fn = "/home/fukasay/analyses/pb/pacbio_Kosuke_170301_A02.subreads.fastq"
+    fn = "/path/to/seq/"
 
     # test
     #file_code, reads, n_seqs, n_bases = open_seq(fn)
