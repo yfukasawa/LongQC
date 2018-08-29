@@ -64,8 +64,16 @@ def main(args):
         parser.print_help()
 
 def command_sample(args):
+    if args.mem < 0 or args.mem > 2:
+        eprint("Error: -m(--mem) option has an out-of-range ranged value.")
+        sys.exit(1)
+
+    if args.nsample < 0 or args.nsample > 50000:
+        eprint("Error: -n(--n_sample) option has an out-of-range ranged value.")
+        sys.exit(1)
+
     if os.path.exists(args.out):
-        eprint("Output path %s already exists." % args.out)
+        eprint("Error: output path %s already exists." % args.out)
         sys.exit(1)
 
     if args.suf:
@@ -154,10 +162,11 @@ def command_sample(args):
             args.adp3 = "GGAACCTCTCTGACTTGGAACCTCTCTGACAAAAAGGTTAAACACCCAAGCAGACGCCAGCAAT" if not args.adp3 else args.adp3
             minimap2_params = "-Y -l 0 -q 160"
             minimap2_med_score_threshold = 160
-        if args.lite:
-            minimap2_db_params = "-k 15 -w 5" 
+        if args.acc:
+            minimap2_db_params = "-k 12 -w 5 -I %s" % args.inds 
         else:
-            minimap2_db_params = "-k 12 -w 5" 
+            minimap2_db_params = "-k 15 -w 5 -I %s" % args.inds
+
         logger.info("Preset \"%s\" was applied. Options --pb(--ont) is overwritten." % (p,))
 
     file_format_code = guess_format(args.input)
@@ -172,14 +181,14 @@ def command_sample(args):
 
     if args.db and file_format_code != 0:
         tempdb_path = os.path.join(args.out, "analysis", "minimap2", "t_db_minimap2")
-        le = LqExec(os.path.join(path_minimap2, "minimap2"))
+        le = LqExec(os.path.join(path_minimap2, "minimap2-coverage"))
         le_args = shlex.split("%s -d %s %s" % (minimap2_db_params, tempdb_path, fastx_path))
         le.exec(*le_args, out=cov_path, err=cov_path_e)
 
     ### initialization for chunked reads ###
     executor = concurrent.futures.ProcessPoolExecutor(max_workers=2)
     futures  = {}
-    lm = LqMask(os.path.join(path_minimap2, "sdust"), args.out, suffix=suffix, max_n_proc=10 if int(args.thread) > 10 else int(args.thread))
+    lm = LqMask(os.path.join(path_minimap2, "sdust"), args.out, suffix=suffix, max_n_proc=10 if int(args.ncpu) > 10 else int(args.ncpu))
     lg = LqGC(chunk_size=150)
     if args.adp5:
         num_trim5     = 0
@@ -194,7 +203,7 @@ def command_sample(args):
     s_reads   = []
     #sample_random_fastq_list(reads, args.nsample, elist=exclude_seqs)
     chunk_n = 0
-    for (reads, n_seqs, n_bases) in open_seq_chunk(args.input, file_format_code, chunk_size=0.5*1024**3, is_upper=True):
+    for (reads, n_seqs, n_bases) in open_seq_chunk(args.input, file_format_code, chunk_size=args.mem*1024**3, is_upper=True):
         ### iterate over chunks
         ### 1. bam to fastq conversion -> another process
         if file_format_code == 0:
@@ -299,7 +308,7 @@ def command_sample(args):
         logger.info('Subsampled seqs were written to a file. #seqs:%d' % s_n_seqs)
 
     # waiting db make by minimap2
-    if le:
+    if args.db and file_format_code != 0:
         while True:
             if le.get_poll() is not None:
                 logger.info("Process %s for %s terminated." % (le.get_pid(), le.get_bin_path()))
@@ -312,16 +321,16 @@ def command_sample(args):
     le = LqExec(os.path.join(path_minimap2, "minimap2-coverage"))
     if args.db and file_format_code != 0:
         le_args = shlex.split("%s -p %d -t %d %s %s" \
-                              % (minimap2_params, int(minimap2_med_score_threshold), int(args.thread), tempdb_path, sample_path))
+                              % (minimap2_params, int(minimap2_med_score_threshold), int(args.ncpu), tempdb_path, sample_path))
     else:
         le_args = shlex.split("%s %s -p %d -t %d %s %s" \
-                              % (minimap2_params, minimap2_db_params, int(minimap2_med_score_threshold), int(args.thread), fastx_path, sample_path))
+                              % (minimap2_params, minimap2_db_params, int(minimap2_med_score_threshold), int(args.ncpu), fastx_path, sample_path))
     le.exec(*le_args, out=cov_path, err=cov_path_e)
 
     logger.info("Overlap computation started. Process is %s" % le.get_pid())
 
     # gc frac plot
-    (gc_read_mean, gc_read_sd) = lg.plot_unmasked_gc_frac(fp=fig_path_gc)
+    gc_read_mean, gc_read_sd = lg.plot_unmasked_gc_frac(fp=fig_path_gc)
     logger.info("Genarated the sample gc fraction plot.")
 
     q7 = np.sum(df_mask[5].values) # make c code to compute Q7 now for speed
@@ -376,9 +385,9 @@ def command_sample(args):
     tobe_json["Length_stats"]["Mean_read_length"] = float(mean_len)
     tobe_json["Length_stats"]["N50_read_length"]  = float(n50)
 
-    #tobe_json["GC_stats"] = {}
-    #tobe_json["GC_stats"]["Mean_GC_content"] = gc_read_mean
-    #tobe_json["GC_stats"]["SD_GC_content"]   = gc_read_sd
+    tobe_json["GC_stats"] = {}
+    tobe_json["GC_stats"]["Mean_GC_content"] = float(gc_read_mean)
+    tobe_json["GC_stats"]["SD_GC_content"]   = float(gc_read_sd)
 
     if max_iden_adp5 >= 0.75:
         tobe_json["Stats_for_adapter5"] = {}
@@ -517,7 +526,7 @@ def command_sample(args):
     root_dict['warns'] = OrderedDict()
     root_dict['errors'] = OrderedDict()
 
-    if not args.sequel and  file_format_code != 3: # fasta has no qual
+    if not args.sequel and file_format_code == 2: # pb-bam and fasta have no qual
         if q7/throughput <= 0.65 and q7/throughput > 0.5:
             root_dict['warns']['Low Q7'] = 'This value should be higher than 65%.'
         elif q7/throughput <= 0.5:
@@ -587,34 +596,53 @@ if __name__ == "__main__":
     presets = ["pb-rs2", "pb-sequel", "ont-ligation", "ont-rapid", "ont-1dsq"]
     help_preset = 'a platform/kit to be evaluated. adapter and some ovlp parameters are automatically applied. ['+", ".join(presets)+'].'
     parser_sample = subparsers.add_parser('sampleqc', help='see `sampleqc -h`')
-    #parser_sample.add_argument('--minimap2_args', help='the arguments for minimap2.', dest = 'miniargs', default = '-Y -k 12 -w 5')
-    parser_sample.add_argument('--pb', help='sample data from PacBio sequencers', dest = 'pb', action = 'store_true', default = None)
-    parser_sample.add_argument('--is_sequel', help='sample data from Sequel of PacBio', dest = 'sequel', action = 'store_true', default = None)
-    parser_sample.add_argument('--ont', help='sample data from ONT sequencers', dest = 'ont', action = 'store_true', default = None)
-    parser_sample.add_argument('--adapter_5', help='adapter sequence for 5\'', dest = 'adp5', default = None)
-    parser_sample.add_argument('--adapter_3', help='adapter sequence for 3\'', dest = 'adp3', default = None)
-    parser_sample.add_argument('--lite', help='this turns on lite mode.', action = 'store_true', dest = 'lite', default = None)
-    parser_sample.add_argument('-d', '--db', help='make minimap2 db first.', dest = 'db', action = 'store_true', default = True)
-    parser_sample.add_argument('-p', '--ncpu', help='the number of cpus for LongQC analysis', dest = 'thread', default = 30)
-    parser_sample.add_argument('-n', '--n_sample', help='the number/fraction of sequences for sampling.', type=int, dest = 'nsample', default = 10000)
+    parser_sample.add_argument('input', help='Input [fasta, fastq or pbbam]', type=str)
+    parser_sample.add_argument('-a', '--accurate',\
+                               help='this turns on the more sensitive setting. More accurate but slower.', action = 'store_true',\
+                               dest = 'acc', default = None)
+    parser_sample.add_argument('-l', '--list',\
+                               help='give IDs of reads for analysis. This replaces subsampling step. [>0 and <=50000]',\
+                               dest = 'list', default = None)
+    parser_sample.add_argument('-d', '--db',\
+                               help='make minimap2 db in parallel to other tasks.',\
+                               dest = 'db', action = 'store_true', default = False)
+    parser_sample.add_argument('-p', '--ncpu', help='the number of cpus for LongQC analysis', type=int, dest = 'ncpu', default = 4)
+    parser_sample.add_argument('-n', '--n_sample',\
+                               help='the number of sequences for sampling. Default is 10,000. [>0 and <=50000].', type=int,\
+                               dest = 'nsample', default = 10000)
     parser_sample.add_argument('-x', '--preset', choices=presets, help=help_preset, metavar='preset')
     parser_sample.add_argument('-t', '--transcript', \
-                               help='Present for sample data coming from transcription such as RNA (or cDNA) sequences', \
+                               help='present for sample data coming from transcription such as RNA (or cDNA) sequences', \
                                dest = 'transcript', action = 'store_true', default = None)
     parser_sample.add_argument('-s', '--sample_name', \
-                               help='sample name is added as a suffix for each output file.', \
+                               help='sample name is added as a suffix for each output file.', type=str,\
                                dest = 'suf', default = None)
     parser_sample.add_argument('-o', '--output', \
-                               help='path for output directory', \
+                               help='path for output directory', type=str,\
                                dest = 'out', required=True, default = None)
-    parser_sample.add_argument('-c', '--trim_output', help='path for trimmed reads. If this is None, trimmed reads won\'t be saved.', dest = 'trim', default = None)
-    parser_sample.add_argument('input', help='Input [fasta, fastq, or pbbam]', type=str)
+    parser_sample.add_argument('-c', '--trim_output', type=str,\
+                               help='path for trimmed reads. If this is not given, trimmed reads won\'t be saved.',\
+                               dest = 'trim', default = None)
+    parser_sample.add_argument('-m', '--mem', type=float,\
+                               help='memory limit for chunking. Please specify in gigabytes. Default is 0.5. [>0 and <=2]', \
+                               dest = 'mem', default = 0.5)
+    parser_sample.add_argument('-i', '--index', type=str,\
+                               help='Give index size for minimap2 (-I) in bp. Reduce when running on a small memory machine.'+
+                               'Default is 4G.', dest = 'inds', default = '4G')
+    parser_sample.add_argument('--adapter_5', help='adapter sequence for 5\'.', dest = 'adp5', default = None)
+    parser_sample.add_argument('--adapter_3', help='adapter sequence for 3\'.', dest = 'adp3', default = None)
+    parser_sample.add_argument('--pb', help='sample data from PacBio sequencers. -p option overwrites this.',\
+                               dest = 'pb', action = 'store_true', default = None)
+    parser_sample.add_argument('--sequel', help='sample data from Sequel of PacBio. -p option overwrites this.',\
+                               dest = 'sequel', action = 'store_true', default = None)
+    parser_sample.add_argument('--ont', help='sample data from ONT sequencers. -p option overwrites this.',\
+                               dest = 'ont', action = 'store_true', default = None)
     parser_sample.set_defaults(handler=command_sample)
 
     # help
-    #parser_help = subparsers.add_parser('help', help='see `help -h`')
-    #parser_help.add_argument('command', help='')
-    #parser_help.set_defaults(handler=command_help)
-
+    parser_help = subparsers.add_parser('help', help='see `help -h`')
+    parser_help.add_argument('command', help='')
+    parser_help.set_defaults(handler=command_help)
     args = parser.parse_args()
+
     main(args)
