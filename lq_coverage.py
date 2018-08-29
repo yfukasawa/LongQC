@@ -395,6 +395,16 @@ class LqCoverage:
         plt.xticks(np.arange(xmax+1), [int(i) for i in np.arange(xmax+1)*interval])
         plt.ylim(0, self.mean_main + 20*np.sqrt(self.cov_main))
         plt.suptitle("")
+
+        if not self.min_lambda and not self.max_lambda and self.mix_model is None:
+            # 3 sigma
+            yc = self.get_mean() - 3*self.get_sd()
+            plt.axhline(y=yc, color="royalblue", alpha=0.4, lw=1)
+            plt.text(0, yc, r'3$\sigma$', color="royalblue")
+            yc = self.get_mean() + 3*self.get_sd()
+            plt.axhline(y=yc, color="royalblue", alpha=0.4, lw=1)
+            plt.text(0, yc, r'3$\sigma$', color="royalblue")
+
         #plt.savefig('Box_plot_quality.png')
         if fp:
             plt.savefig(fp, bbox_inches="tight")
@@ -548,13 +558,13 @@ class LqCoverage:
 # test
 if __name__ == "__main__":
 
-    lc = LqCoverage("/home/fukasay/analyses/longQC/longqc_sampleqc_ont_simuation_R91d/analysis/minimap2/coverage_out.txt", isTranscript=False)
-    lc.plot_coverage_dist()
-    print(lc.get_unmapped_med_frac(), lc.get_high_div_frac())
-    print(lc.calc_xome_size(243346242))
+    lc = LqCoverage("/path/to/table", isTranscript=False)
+    #lc.plot_coverage_dist()
+    #print(lc.get_unmapped_med_frac(), lc.get_high_div_frac())
+    #print(lc.calc_xome_size(243346242))
     #lc.plot_unmapped_frac_terminal(adp5_pos=61, adp3_pos=30)
     #lc.plot_qscore_dist()
-    #lc.plot_length_vs_coverage()
+    lc.plot_length_vs_coverage()
 
     """
     # internal break. experimental.
