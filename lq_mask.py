@@ -162,9 +162,10 @@ class LqMask:
 # test
 if __name__ == "__main__":
     # test
+    
     lm = LqMask("sdust", "./")
     chunk_n = 0
-    for (reads, n_seqs, n_bases) in open_seq_chunk(args.input, file_format_code, chunk_size=args.mem*1024**3, is_upper=True):
+    for (reads, n_seqs, n_bases) in open_seq_chunk(sys.argv[1], file_format_code, chunk_size=float(sys.argv[2])*1024**3, is_upper=True):
         lm.submit_sdust(reads, chunk_n)
         chunk_n += 1
     lm.close_pool()
