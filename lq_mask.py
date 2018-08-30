@@ -162,8 +162,10 @@ class LqMask:
 # test
 if __name__ == "__main__":
     # test
-    lm = LqMask(reads_obj, bin_path, dir_path, n_proc=10)
-    lm.run_async_sdust()
-    sdust_outf = lm.get_outfile_path()
-    print(sdust_outf)
-    lm.plot_masked_fraction()
+    lm = LqMask("sdust", "./")
+    chunk_n = 0
+    for (reads, n_seqs, n_bases) in open_seq_chunk(args.input, file_format_code, chunk_size=args.mem*1024**3, is_upper=True):
+        lm.submit_sdust(reads, chunk_n)
+        chunk_n += 1
+    lm.close_pool()
+    lm.plot_masked_fraction("./masked_frac.png")
