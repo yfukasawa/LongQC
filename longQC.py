@@ -81,7 +81,8 @@ def command_sample(args):
     else:
         suffix = ""
 
-    path_minimap2 = "/home/fukasay/Projects/minimap2_mod/"
+    #path_minimap2 = "/home/fukasay/Projects/minimap2_mod/"
+    path_minimap2 = ""
     cov_path    = os.path.join(args.out, "analysis", "minimap2", "coverage_out" + suffix + ".txt")
     cov_path_e  = os.path.join(args.out, "analysis", "minimap2", "coverage_err" + suffix + ".txt")
     sample_path = os.path.join(args.out, "analysis", "subsample" + suffix + ".fastq")
