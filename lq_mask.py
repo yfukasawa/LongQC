@@ -7,7 +7,7 @@ import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
 
-from lq_utils import write_fastq, parse_fastx
+from lq_utils import write_fastq, open_seq_chunk
 from lq_exec  import LqExec
 from time     import sleep
 
