@@ -7,7 +7,7 @@ import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
 
-from lq_utils import write_fastq, open_seq_chunk
+from lq_utils import write_fastq, open_seq_chunk, guess_format
 from lq_exec  import LqExec
 from time     import sleep
 
@@ -165,7 +165,9 @@ if __name__ == "__main__":
     
     lm = LqMask("sdust", "./")
     chunk_n = 0
-    for (reads, n_seqs, n_bases) in open_seq_chunk(sys.argv[1], file_format_code, chunk_size=float(sys.argv[2])*1024**3, is_upper=True):
+    fn = sys.argv[1]
+    file_code = guess_format(fn)
+    for (reads, n_seqs, n_bases) in open_seq_chunk(fn, file_code, chunk_size=float(sys.argv[2])*1024**3, is_upper=True):
         lm.submit_sdust(reads, chunk_n)
         chunk_n += 1
     lm.close_pool()
