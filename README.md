@@ -18,7 +18,7 @@ LongQC was developed to overcome such situations, and it gives you a first insig
 ## Getting started
 docker image is mainteined, and we recommended running LongQC on the docker. Having said that, if you want to setup manually, kidly follow below steps.
 
-###1. Python dependency
+### 1. Python dependency
 LongQC was written in python3 and has dependencies for popular python libraries:
 
 * numpy
@@ -33,7 +33,7 @@ Anaconda should be easier choice. We recommend [anaconda3](https://www.anaconda.
 	a) conda install pysam
 	b) conda install edlib
 	   conda install python-edlib
-###2. minimap2
+### 2. minimap2
 Modified version of minimap2 named minimap2-coverage is also required. If you are a Mac user, you have to prepare libc for argp.h.
 
 	cd /path/to/download/
@@ -47,42 +47,42 @@ Then, change the below variable in **longQC.py**.
 Or, put both **minimap2-coverage** and **sdust** to some dirs in PATH.
 
 #### For Mac users
-Using homebrew seems to be easiest.
+Argp has to be installed. Using homebrew seems to be easiest.
 
 	brew argp-standalone
 
 ## The Docker image
 A docker image was prepared and distributed on [Docker hub](https://hub.docker.com/). All of dependency will be automatically resoleved. I tested the docker image of LongQC on both Linux and Mac. **docker version > 17 is required.**
 
-###1. Build
+### 1. Build
 	docker build -t LongQC
 
 The above command simply build a new container named LongQC.
 
-###2. Run
+### 2. Run
 	docker run -it --rm -v /path/to/shared_dir/:/data LongQC
 Run the LongQC container built by the above command. The container uses `/data` as a default workspace, and the above command mounts `/data` to `shared_dir` in the host.
 
 ## The usage of sampleqc
-####For inpatient persons using RS-II:
+#### For inpatient persons using RS-II:
 
 	python longQC.py sampleqc -x pb-rs2 -o out_dir input_reads.(fa,fq)
-####For Sequel:
+#### For Sequel:
 
 	python longQC.py sampleqc -x pb-sequel -o out_dir input_reads.bam
-####For ONT (1D ligation):
+#### For ONT (1D ligation):
 
 	python longQC.py sampleqc -x ont-ligation -o out_dir input_reads.fq
-####For ONT (rapid):
+#### For ONT (rapid):
 
 	python longQC.py sampleqc -x ont-rapid -o out_dir input_reads.fq
 
-####Required
+#### Required
 * `input` Either fasta, fastq or PacBio BAM formatted file is required. Input file is expected to be ready for analysis or have at least 5x coverage.
 * `-o` or `--output` specify a path for output
 * `-x` or `--preset` specify a platform/kit to be evaluated. adapter and some ovlp parameters are automatically applied. (pb-rs2, pb-sequel, ont-ligation, ont-rapid, ont-1dsq)
 
-####Optional
+#### Optional
 ##### General options:
 * `-t` or `--transcript` applies the preset for transcripts
 * `-n` or `--n_sample`
@@ -93,16 +93,16 @@ Run the LongQC container built by the above command. The container uses `/data` 
 * `--adapter_5` ADP5      adapter sequence for 5'.
 * `--adapter_3` ADP3      adapter sequence for 3'.
 
-#####Speed options:
+##### Speed options:
 * `-a` or `--accurate` this turns on the more sensitive setting. More accurate but slower.
 * `-p` or `--ncpu`the number of cpus for LongQC analysis
 * `-d` or `--db` make minimap2 db in parallel to other tasks.
 
-#####Memory options:
+##### Memory options:
 * `-m` or `--mem` memory limit for chunking. Please specify in **gigabytes**. Default is 0.5 Gbytes. [>0 and <=2]
 * `-i` or `--index` Give index size for minimap2 (-I) in **bp**. Reduce when running on a small memory machine. Default is 4G.
 
-#####Experts:
+##### Experts:
 * `--pb` sample data from PacBio sequencers. this option will be overwritten by -x.
 * `--sequel` sample data from Sequel of PacBio. this option will be overwritten by -x.
 * `--ont` sample data from ONT sequencers. this option will be overwritten by -x.
