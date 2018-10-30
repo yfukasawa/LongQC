@@ -94,7 +94,9 @@ def command_sample(args):
         suffix = ""
 
     ncpu = int(args.ncpu)
-    path_minimap2 = ""
+    path_minimap2  = ""
+    pb_control     = None
+    merged_control = None
     cov_path    = os.path.join(args.out, "analysis", "minimap2", "coverage_out" + suffix + ".txt")
     cov_path_e  = os.path.join(args.out, "analysis", "minimap2", "coverage_err" + suffix + ".txt")
     sample_path = os.path.join(args.out, "analysis", "subsample" + suffix + ".fastq")
@@ -123,6 +125,9 @@ def command_sample(args):
     minimap2_params = ''
     minimap2_db_params = ''
     minimap2_med_score_threshold = 0
+
+    nonsense_read_error_threshold = 0.45
+    nonsense_read_warn_threshold = 0.25
 
     # output_path will be made too.
     if not os.path.isdir(os.path.join(args.out, "analysis", "minimap2")):
@@ -192,6 +197,7 @@ def command_sample(args):
             if args.short:
                 minimap2_med_score_threshold_short = 140
         if args.acc:
+            #minimap2_db_params = "-k 12 -w 1 -I %s" % args.inds 
             minimap2_db_params = "-k 12 -w 5 -I %s" % args.inds 
         else:
             minimap2_db_params = "-k 15 -w 5 -I %s" % args.inds
@@ -207,6 +213,21 @@ def command_sample(args):
         sys.exit()
     else:
         fastx_path = args.input
+
+    if args.pb:
+        if args.sequel:
+            filter_ref     = os.path.join(os.path.join(os.path.dirname(os.path.abspath(__file__)), "refs"), "Sequel_control_reference.fasta")
+        else:
+            filter_ref     = os.path.join(os.path.join(os.path.dirname(os.path.abspath(__file__)), "refs"), "RS2_control_reference.fasta")
+        pb_control     = os.path.join(args.out, "analysis", "minimap2", "spiked_in_control" + suffix + ".txt")
+        pb_control_err = os.path.join(args.out, "analysis", "minimap2", "spiked_in_control" + suffix + "_stderr.txt")
+        minimap2_filtering_params = "-Y -Hk15 -w 10 -c 1 -l 0 --filter"
+        nonsense_read_error_threshold = 0.2
+        nonsense_read_warn_threshold  = 0.15
+        if args.short:
+            pb_control_short     = os.path.join(args.out, "analysis", "minimap2", "short_spiked_in_control" + suffix + ".txt")
+            pb_control_short_err = os.path.join(args.out, "analysis", "minimap2", "short_spiked_in_control" + suffix + "_stderr.txt")
+            merged_control       = os.path.join(args.out, "analysis", "minimap2", "merged_spiked_in_control" + suffix + ".txt")
 
     if args.short:
         minimap2_db_params_short = "-k 9 -w 1 -I %s" % args.inds 
@@ -228,7 +249,6 @@ def command_sample(args):
     executor = concurrent.futures.ProcessPoolExecutor(max_workers=2)
     ncpu -= 2 # subtract cpus for the executor
     futures  = {}
-    logger.info("ncpu: %d" % ncpu)
     lm = LqMask(os.path.join(path_minimap2, "sdust"), args.out, suffix=suffix, max_n_proc=10 if ncpu > 10 else ncpu)
     lg = LqGC(chunk_size=150)
     if args.adp5:
@@ -490,12 +510,54 @@ def command_sample(args):
                 outf.write(inf.read())
         logger.info("Outputs for normal and short reads were merged.")
         
+    # filtering for spiked in
+    if args.pb:
+        le_spike = LqExec(os.path.join(path_minimap2, "minimap2-coverage"))
+        le_spike_args = shlex.split("%s -t %d %s %s" \
+                                    % (minimap2_filtering_params, int(args.ncpu), filter_ref, sample_path))
+        le_spike.exec(*le_spike_args, out=pb_control, err=pb_control_err)
+        logger.info("Spike-in control filteration started. Process is %s" % le_spike.get_pid())
+
+        # here wait until the minimap procerss finishes
+        while True:
+            if le.get_poll() is not None:
+                logger.info("Process %s for %s terminated." % (le_spike.get_pid(), le_spike.get_bin_path()))
+                break
+            logger.info("Filtering spike-in control in sampled reads...")
+            sleep(10)
+
+        if args.short:
+            le_spike_short_args = shlex.split("%s -t %d %s %s" \
+                                              % (minimap2__filtering_params, int(args.ncpu), filter_ref, short_sample_path))
+            le_spike_short.exec(*le_spike_args, out=pb_control_short, err=pb_control_short_err)
+            logger.info("Spike-in control filteration started. Process is %s" % le_spike_short.get_pid())
+
+            # here wait until the minimap procerss finishes
+            while True:
+                if le.get_poll() is not None:
+                    logger.info("Process %s for %s terminated." % (le_spike_short.get_pid(), le_spike_short.get_bin_path()))
+                    break
+                logger.info("Filtering spike-in control in sampled reads...")
+                sleep(10)
+            logger.info("Filteration finished.")
+
+            with open(merged_control, 'w') as outf:
+                with open(pb_control, 'r') as inf:
+                    outf.write(inf.read())
+                with open(pb_control_short, 'r') as inf:
+                    outf.write(inf.read())
+            logger.info("Outputs for normal and short reads were merged.")
+        logger.info("Filteration finished.")
+
+    # for laggy file system, we neeed to wait a bit. otherwise, no data exception will be raised.
+    sleep(10)
+
     # execute minimap2_coverage
     logger.info("Generating coverage related plots...")
     if args.short:
-        lc = LqCoverage(merged_cov_path, isTranscript=args.transcript)
+        lc = LqCoverage(merged_cov_path, isTranscript=args.transcript, control_filtering=merged_control)
     else:
-        lc = LqCoverage(cov_path, isTranscript=args.transcript)
+        lc = LqCoverage(cov_path, isTranscript=args.transcript, control_filtering=pb_control)
     lc.plot_coverage_dist(fig_path_cv)
     lc.plot_unmapped_frac_terminal(fig_path_ta, \
                                    adp5_pos=np.mean(adp_pos5) if adp_pos5 and np.mean(adp_pos5) > 0 else None, \
@@ -509,7 +571,9 @@ def command_sample(args):
 
     tobe_json["Coverage_stats"] = {}
     tobe_json["Coverage_stats"]["Estimated non-sense read fraction"] = float(lc.get_unmapped_med_frac())
-    tobe_json["Coverage_stats"]["Reliable Highly diverged fraction"] = float(lc.get_high_div_frac())
+    #tobe_json["Coverage_stats"]["Reliable Highly diverged fraction"] = float(lc.get_high_div_frac())
+    if lc.get_control_frac():
+        tobe_json["Coverage_stats"]['Estimated spiked-in control read fraction'] = float(lc.get_control_frac())
 
     if args.transcript:
         tobe_json["Coverage_stats"]["Mode_coverage"] = float(lc.get_logn_mode())
@@ -519,10 +583,6 @@ def command_sample(args):
         tobe_json["Coverage_stats"]["Mean_coverage"] = float(lc.get_mean())
         tobe_json["Coverage_stats"]["SD_coverage"]   = float(lc.get_sd())
     tobe_json["Coverage_stats"]["Estimated crude Xome size"] = str(lc.calc_xome_size(throughput))
-
-    if args.pb == True:
-        pass
-        #tobe_json["Coverage_stats"]["Low quality read fraction"] = float(lc.get_unmapped_bad_frac() - lc.get_unmapped_med_frac())
 
     with open(json_path, "w") as f:
         logger.info("Quality measurements were written into a JSON file: %s" % json_path)
@@ -549,8 +609,11 @@ def command_sample(args):
     if lc.get_unmapped_med_frac():
         root_dict['stats']['Estimated non-sense read fraction'] = "%.3f" % float(lc.get_unmapped_med_frac())
 
-    if lc.get_high_div_frac():
-        root_dict['stats']['Reliable Highly diverged fraction'] = "%.3f" % float(lc.get_high_div_frac())
+    if lc.get_control_frac():
+        root_dict['stats']['Estimated spiked-in control read fraction'] = "%.3f" % float(lc.get_control_frac())
+
+    #if lc.get_high_div_frac():
+    #    root_dict['stats']['Reliable Highly diverged fraction'] = "%.3f" % float(lc.get_high_div_frac())
 
     if args.pb == True:
         pass
@@ -615,10 +678,10 @@ def command_sample(args):
         elif q7/throughput <= 0.5:
             root_dict['errors']['Too low Q7'] = 'This value should be higher than 50%. Ideally, higher than 65%.'
 
-    if lc.get_unmapped_med_frac() >= 0.25 and lc.get_unmapped_med_frac() < 0.45:
-        root_dict['warns']['High non-sense read fraction'] = 'This value should be lower than 30%.'
-    elif lc.get_unmapped_med_frac() >= 0.45:
-        root_dict['errors']['Too high non-sense read fraction'] = 'This value should not be higher than 40%.'
+    if lc.get_unmapped_med_frac() >= nonsense_read_warn_threshold and lc.get_unmapped_med_frac() < nonsense_read_error_threshold:
+        root_dict['warns']['High non-sense read fraction'] = 'This value should be lower than %d%%.' % int(nonsense_read_warn_threshold*100)
+    elif lc.get_unmapped_med_frac() >= nonsense_read_error_threshold:
+        root_dict['errors']['Too high non-sense read fraction'] = 'This value should not be higher than %d%%.' % int(nonsense_read_error_threshold*100)
 
     if num_trim5 and not args.pb:
         if num_trim5/len(lengths) <= 0.3:

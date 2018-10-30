@@ -72,6 +72,7 @@ class LqCoverage:
     COV_CORRECTION              = 0.9 # experimental term.
     DIV_SCORE_THRESHOLD         = 0.25 # experimental.
     COV_THRESHOLD_FOR_DIV_SC    = 25  # experimental.
+    READ_NAME_COLUMN = 0
     QLENGTH_COLUMN  = 1
     N_MBASE_COLUMN  = 2
     MED_READ_COV_CORS = 4
@@ -80,7 +81,7 @@ class LqCoverage:
     QV_COLUMN = 7
     DIV_COLUMN = 8
 
-    def __init__(self, table_path, isTranscript=False):
+    def __init__(self, table_path, isTranscript=False, control_filtering=None, engine='python'):
         self.df = pd.read_table(table_path, sep='\t', header=None)
         self.min_lambda = None
         self.max_lambda = None
@@ -93,6 +94,12 @@ class LqCoverage:
         self.mean_main = None
         self.cov_main  = None
         self.main_comp_index = None
+        self.control_reads = None
+
+        if control_filtering is not None:
+            self.df_control = pd.read_table(control_filtering, sep='\t', header=None)
+            self.control_reads = self.df_control[self.df_control[LqCoverage.COVERAGE_COLUMN] >= 0.5][0].tolist()
+            self.df = self.df[~self.df[LqCoverage.READ_NAME_COLUMN].isin(self.control_reads)] # remove control from the list
 
         # for final conclusion
         self.warnings = []
@@ -154,6 +161,12 @@ class LqCoverage:
         if self.high_div_frac == -1.0:
             logger.warning("Highly divergent read fraction has no value. Do estimation first.")
         return self.high_div_frac
+
+    def get_control_frac(self):
+        if self.control_reads:
+            return len(self.control_reads)/(len(self.control_reads) + len(self.df))
+        else:
+            return 0.0
 
     def get_errors(self):
         return self.errors
@@ -531,7 +544,8 @@ class LqCoverage:
         trim_3 = []
         intrnl = []
 
-        for i, str in enumerate(self.df[coi]):
+        for i in self.df.index.tolist():
+            str = self.df[coi][i]
             if str == '0':
                 continue
             ql = self.df[qli][i]
@@ -562,9 +576,10 @@ if __name__ == "__main__":
     #lc.plot_coverage_dist()
     #print(lc.get_unmapped_med_frac(), lc.get_high_div_frac())
     #print(lc.calc_xome_size(243346242))
-    #lc.plot_unmapped_frac_terminal(adp5_pos=61, adp3_pos=30)
+    lc.plot_unmapped_frac_terminal(adp5_pos=61, adp3_pos=30)
     #lc.plot_qscore_dist()
     lc.plot_length_vs_coverage()
+    print(lc.get_control_frac())
 
     """
     # internal break. experimental.
