@@ -24,7 +24,7 @@ from time        import sleep
 from scipy.stats import gamma
 from jinja2      import Environment, FileSystemLoader
 from collections import OrderedDict
-import concurrent.futures
+from multiprocessing import Pool
 
 import lq_nanopore
 import lq_rs
@@ -246,9 +246,9 @@ def command_sample(args):
             le_short.exec(*le_args_short, out=short_cov_path, err=short_cov_path_e)
 
     ### initialization for chunked reads ###
-    executor = concurrent.futures.ProcessPoolExecutor(max_workers=2)
+    pool = Pool(processes=2)
     ncpu -= 2 # subtract cpus for the executor
-    futures  = {}
+    pool_res  = {}
     lm = LqMask(os.path.join(path_minimap2, "sdust"), args.out, suffix=suffix, max_n_proc=10 if ncpu > 10 else ncpu)
     lg = LqGC(chunk_size=150)
     if args.adp5:
@@ -279,34 +279,34 @@ def command_sample(args):
             logger.info("Adapter search is starting for a chunk %d." % chunk_n)
         if args.adp5 and args.adp3:
             #(tuple_5, tuple_3) = cut_adapter(reads, adp_t=args.adp5, adp_b=args.adp3, logger=logger)
-            futures['adapter'] = executor.submit(cut_adapter, *[reads], **{'adp_t':args.adp5, 'adp_b':args.adp3})
+            pool_res['adapter'] = pool.apply_async(cut_adapter, args=(reads,), kwds={'adp_t':args.adp5, 'adp_b':args.adp3})
         elif not args.adp5 and args.adp3:
             #tuple_3 = cut_adapter(reads, adp_b=args.adp3, adp_t=None, logger=logger)
-            futures['adapter'] = executor.submit(cut_adapter, *[reads], **{'adp_b':args.adp3})
+            pool_res['adapter'] =  pool.apply_async(cut_adapter, args=(reads,), kwds={'adp_b':args.adp3})
         elif args.adp5 and not args.adp3:
             #tuple_5 = cut_adapter(reads, adp_t=args.adp5, adp_b=None, logger=logger)
-            futures['adapter'] = executor.submit(cut_adapter, *[reads], **{'adp_t':args.adp5})
+            pool_res['adapter'] = pool.apply_async(cut_adapter, args=(reads,), kwds={'adp_t':args.adp5})
 
         ### 4. subsampling -> another process
-        futures['subsample'] = executor.submit(subsample_from_chunk, reads, cum_n_seq, s_reads, args.nsample)
-        #futures['subsample'] = executor.submit(subsample_from_chunk, reads, cum_n_seq, s_reads, args.nsample, **{'minlen': 300})
+        pool_res['subsample'] = pool.apply_async(subsample_from_chunk, args=(reads, cum_n_seq, s_reads, args.nsample))
+        #pool_res['subsample'] = executor.submit(subsample_from_chunk, reads, cum_n_seq, s_reads, args.nsample, **{'minlen': 300})
 
         ### 5. GC fraction -> within this process as this is not pickable (class method)
         logger.info("Computation of the GC fraction started for a chunk %d" % chunk_n)
         lg.calc_read_and_chunk_gc_frac(reads)
 
         if args.adp5 and args.adp3:
-            (tuple_5, tuple_3) = futures['adapter'].result()
+            (tuple_5, tuple_3) = pool_res['adapter'].get()
             logger.info("Adapter search has done for a chunk %d." % chunk_n)
         elif not args.adp5 and args.adp3:
-            tuple_3 = futures['adapter'].result()
+            tuple_3 = pool_res['adapter'].get()
             logger.info("Adapter search has done for a chunk %d." % chunk_n)
         elif args.adp5 and not args.adp3:
-            tuple_5 = futures['adapter'].result()
+            tuple_5 = pool_res['adapter'].get()
             logger.info("Adapter search has done for a chunk %d." % chunk_n)
 
         ### 6. termination of one chunk
-        s_reads = futures['subsample'].result()
+        s_reads = pool_res['subsample'].get()
         logger.info('subsample finished for chunk %d.' % chunk_n)
 
         # trimmed reads by edlib are saved as fastq
@@ -527,8 +527,9 @@ def command_sample(args):
             sleep(10)
 
         if args.short:
+            le_spike_short = LqExec(os.path.join(path_minimap2, "minimap2-coverage"))
             le_spike_short_args = shlex.split("%s -t %d %s %s" \
-                                              % (minimap2__filtering_params, int(args.ncpu), filter_ref, short_sample_path))
+                                              % (minimap2_filtering_params, int(args.ncpu), filter_ref, short_sample_path))
             le_spike_short.exec(*le_spike_args, out=pb_control_short, err=pb_control_short_err)
             logger.info("Spike-in control filteration started. Process is %s" % le_spike_short.get_pid())
 
@@ -540,6 +541,8 @@ def command_sample(args):
                 logger.info("Filtering spike-in control in sampled reads...")
                 sleep(10)
             logger.info("Filteration finished.")
+
+            sleep(10)
 
             with open(merged_control, 'w') as outf:
                 with open(pb_control, 'r') as inf:
