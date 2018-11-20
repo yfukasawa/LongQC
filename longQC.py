@@ -530,7 +530,7 @@ def command_sample(args):
             le_spike_short = LqExec(os.path.join(path_minimap2, "minimap2-coverage"))
             le_spike_short_args = shlex.split("%s -t %d %s %s" \
                                               % (minimap2_filtering_params, int(args.ncpu), filter_ref, short_sample_path))
-            le_spike_short.exec(*le_spike_args, out=pb_control_short, err=pb_control_short_err)
+            le_spike_short.exec(*le_spike_short_args, out=pb_control_short, err=pb_control_short_err)
             logger.info("Spike-in control filteration started. Process is %s" % le_spike_short.get_pid())
 
             # here wait until the minimap procerss finishes
