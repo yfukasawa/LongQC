@@ -72,14 +72,16 @@ class LqCoverage:
     COV_CORRECTION              = 0.9 # experimental term.
     DIV_SCORE_THRESHOLD         = 0.25 # experimental.
     COV_THRESHOLD_FOR_DIV_SC    = 25  # experimental.
-    READ_NAME_COLUMN = 0
-    QLENGTH_COLUMN  = 1
-    N_MBASE_COLUMN  = 2
-    MED_READ_COV_CORS = 4
+    LENGTH_BIN_THRESHOLD        = 100
+    # table index
+    READ_NAME_COLUMN   = 0
+    QLENGTH_COLUMN     = 1
+    N_MBASE_COLUMN     = 2
+    MED_READ_COV_CORS  = 4
     GOOD_READ_COV_CORS = 5
-    COVERAGE_COLUMN = 6
-    QV_COLUMN = 7
-    DIV_COLUMN = 8
+    COVERAGE_COLUMN    = 6
+    QV_COLUMN          = 7
+    DIV_COLUMN         = 8
 
     def __init__(self, table_path, isTranscript=False, control_filtering=None, engine='python'):
         self.df = pd.read_table(table_path, sep='\t', header=None)
@@ -436,7 +438,7 @@ class LqCoverage:
 
     def __check_outlier_coverage(self, interval):
         stats = self.df.groupby('Binned read length')[LqCoverage.COVERAGE_COLUMN].agg([np.median, np.size])
-        meds = stats['median'][np.where(stats['size']>=50)[0]]
+        meds = stats['median'][np.where(stats['size']>=LqCoverage.LENGTH_BIN_THRESHOLD)[0]]
         three_sigma = np.where((meds > self.get_mean() + 3*self.get_sd()) | (meds <= self.get_mean() - 3*self.get_sd()))
         if len(three_sigma[0]) > 0:
             #error case
@@ -572,10 +574,10 @@ class LqCoverage:
 # test
 if __name__ == "__main__":
 
-    lc = LqCoverage("/path/to/table", isTranscript=False)
-    #lc.plot_coverage_dist()
-    #print(lc.get_unmapped_med_frac(), lc.get_high_div_frac())
-    #print(lc.calc_xome_size(243346242))
+    lc = LqCoverage("/path/to/table.txt", isTranscript=False)
+    lc.plot_coverage_dist()
+    print(lc.get_unmapped_med_frac(), lc.get_high_div_frac())
+    print(lc.calc_xome_size(243346242))
     lc.plot_unmapped_frac_terminal(adp5_pos=61, adp3_pos=30)
     #lc.plot_qscore_dist()
     lc.plot_length_vs_coverage()
