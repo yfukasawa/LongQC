@@ -182,7 +182,7 @@
 		<button class="btn btn-lg" data-slide="rq">Per Read Quality</button>
 		<div class="item-in-pagecontent rq" id="" style="display: none;">
 		{% else %}
-		<button class="btn btn-lg active" data-slide="ad">Per Read Quality</button>
+		<button class="btn btn-lg active" data-slide="rq">Per Read Quality</button>
 		<div class="item-in-pagecontent rq" id="">
 		{% endif %}
 		  <div class="help" data-help="rqh"></div>
@@ -199,7 +199,43 @@
 		<button class="btn btn-lg active" data-slide="rc">Per Read Coverage</button>
 		<div class="item-in-pagecontent rc" id="">
 		  <div class="help" data-help="rch"></div>
-		  <div class="help-item rch">Help! I need somebody!
+		  <div class="help-item rch">
+		    Per-read coverage section presents coverage stats computed on the subsampled reads.<p>
+		    <dt class="help-content">Per read coverage distribution</dt>
+		    <dd class="help-content">
+		      The first plot is an overview of per read coverage. If the dataset has no issue, single peak shall be observed except metagenomic samples.
+		      LongQC automatically detects such a peak using GMM (for genome) or mixture of Gaussian and lognorm distribution (for transcriptome) to discriminate the true peak from the background level.
+		      Mean/Median is then used for rough genome/transcriptome estimation.
+		      If there are multiple peaks and the library is not metagenomic, you will observe overdispersion of coverage in further analysis.
+		    </dd>
+		    <dt class="help-content">Read coverage over different length reads</dt>
+		    <dd class="help-content">
+		      The plot in the middle is prepared to check if there is unexpected fluctuation of coverage. In genome sequencing data, fluctuation is supposed to be within a certain range (3 sigma as default). If you observe some singnificant fluctuations, it would be a signal of some issues.
+		      We confimed that such flucatuation tells contamination, low quality library, overloading in PacBio etc.
+		      If the data includes similar size genomes, fluctuation should be small.
+		    </dd>
+		    <dt class="help-content">QV for normal and non-sense reads</dt>
+		    <dd class="help-content">
+		      Box plot for normal reads should show higher value than that of non-sense reads.
+		      Ideally, median of non-sense reads (orange line) should be in the red region.
+		      If two boxes are close to each other, there are two cases.
+		      <p></p>
+		      <p>
+		      Case 1: medians for both normal and non-sense shit in green area. This infers that coverage may be quite low.
+		      Because non-sense read group include lots of mappable reads, average QV for non-sense read bacomes high in such a case.
+		      </p>
+		      <p>
+		      Case 2: medians for both normal and non-sense shit in red area. This infers that dataset is so noisy that further analysis can be affected badly.
+		      </p>
+		      All in all, if two boxes are close, please carefully check the coverage plot.
+		      Lastly, Sequel datasets cannot generate QV plot because there is no Phred score for Sequel at present.
+		    </dd>
+		    <dt class="help-content">Note:</dt>
+		    <dd class="help-content">
+		      It is also noteworthy that mean/median coverage shown in this section can be smaller than the result using references. Because mapping reads onto uncorrected error-prone sequences is less sensitive, coverage is affected by such less sensitive result.
+		      Estimated genome/transcriptome size tend to be bigger than the actual size because of the above effect.
+		      The better data provides the better size estimation in general.
+		    </dd>
 		  </div>
 		  <h2 id="RC">Per read coverage</h2>
 		  <img src="figs/{{ rc.cov_plot_name}}">
