@@ -50,7 +50,7 @@ Argp has to be installed. Using homebrew seems to be easiest.
 	brew argp-standalone
 
 ## The Docker image
-A docker image was prepared and distributed on [Docker hub](https://hub.docker.com/). All of dependency will be automatically resoleved. I tested the docker image of LongQC on both Linux and Mac. **docker version > 17 is required.**
+See the docker file in this repository. All of dependency will be automatically resoleved. I tested the docker image of LongQC on both Linux and Mac. **docker version > 17 is required.**
 
 ### 1. Build
 	docker build -t LongQC
