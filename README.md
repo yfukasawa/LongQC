@@ -1,7 +1,5 @@
 # LongQC
 
-![MacDown logo](http://macdown.uranusjr.com/static/images/logo-160.png)
-
 ## What is LongQC?
 LongQC is a tool for the data quality control of the PacBio and ONT long reads, and it has two functionalities: sample qc and platform qc.
 
@@ -37,8 +35,8 @@ Anaconda should be easier choice. We recommend [anaconda3](https://www.anaconda.
 Modified version of minimap2 named minimap2-coverage is also required. If you are a Mac user, you have to prepare libc for argp.h.
 
 	cd /path/to/download/
-	git clone https://gitlab.kaust.edu.sa/fukasay/minimap2_mod.git
-	cd minimap2_mod && make extra
+	git clone https://github.com/yfukasawa/LongQC.git
+	cd LongQC/minimap2_mod && make extra
 
 Then, change the below variable in **longQC.py**.
 
@@ -52,7 +50,7 @@ Argp has to be installed. Using homebrew seems to be easiest.
 	brew argp-standalone
 
 ## The Docker image
-A docker image was prepared and distributed on [Docker hub](https://hub.docker.com/). All of dependency will be automatically resoleved. I tested the docker image of LongQC on both Linux and Mac. **docker version > 17 is required.**
+See the docker file in this repository. All of dependency will be automatically resoleved. I tested the docker image of LongQC on both Linux and Mac.
 
 ### 1. Build
 	docker build -t LongQC
