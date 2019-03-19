@@ -82,6 +82,7 @@ class LqCoverage:
     COVERAGE_COLUMN    = 6
     QV_COLUMN          = 7
     DIV_COLUMN         = 8
+    T2_COVERAGE_COLUMN = 9
 
     def __init__(self, table_path, isTranscript=False, control_filtering=None, engine='python'):
         self.df = pd.read_table(table_path, sep='\t', header=None)
@@ -216,13 +217,20 @@ class LqCoverage:
             range_str = str(self.min_lambda) + "-" + str(self.max_lambda)
             logger.warning("If and only if the data is healthy, very rough estimated coverage range is %s." % range_str)
 
-        # skewed dist. sometimes occur in low coverage data
+        # skewed dist. sometimes occur in low coverage data and/or long tail
         if self.low_coverage and self.unmapped_frac_med < LqCoverage.UNMAPPED_FRACTION_THRESHOLD and not self.isTranscript:
             logger.warning("The fraction of zero coverage read is not too high %.3f, but still looks low coverage" % self.unmapped_frac_med)
-            self.min_lambda = -1 * math.log(self.unmapped_frac_med - LqCoverage.UNMAPPED_FRACTION_PARAM_MIN)
-            self.max_lambda = -1 * math.log(self.unmapped_frac_med - LqCoverage.UNMAPPED_FRACTION_PARAM_MAX)
-            range_str = str(self.min_lambda) + "-" + str(self.max_lambda)
-            logger.warning("If and only if the data is healthy, very rough estimated coverage range is %s." % range_str)
+            logger.warning(self.unmapped_frac_med)
+
+            self.__est_coverage_dist_lognorm_norm()
+            self.mode_logn_main = np.exp(self.mix_model[1][1] - self.mix_model[2][1]**2)
+            self.mu_logn_main = self.mix_model[1][1]
+            self.sigma_logn_main = self.mix_model[2][1]
+
+            #self.min_lambda = -1 * math.log(self.unmapped_frac_med - LqCoverage.UNMAPPED_FRACTION_PARAM_MIN)
+            #self.max_lambda = -1 * math.log(self.unmapped_frac_med - LqCoverage.UNMAPPED_FRACTION_PARAM_MAX)
+            #range_str = str(self.min_lambda) + "-" + str(self.max_lambda)
+            #logger.warning("If and only if the data is healthy, very rough estimated coverage range is %s." % range_str)
 
         # RNA and long tail case
         if self.isTranscript:
@@ -320,7 +328,7 @@ class LqCoverage:
             # gmm
             m_size = int((throughput * (1.0 - self.unmapped_frac_med)) / self.mean_main)
 
-        if self.unmapped_frac_med >= LqCoverage.UNMAPPED_FRACTION_THRESHOLD or (self.low_coverage and not self.isTranscript):
+        if self.unmapped_frac_med >= LqCoverage.UNMAPPED_FRACTION_THRESHOLD: #or (self.low_coverage and not self.isTranscript):
             # poission est + empirical correction
             _s1 = throughput * LqCoverage.COV_CORRECTION * (1 - LqCoverage.UNMAPPED_FRACTION_PARAM_MIN) / self.min_lambda
             _s2 = throughput * LqCoverage.COV_CORRECTION * (1 - LqCoverage.UNMAPPED_FRACTION_PARAM_MAX) / self.max_lambda
@@ -577,9 +585,9 @@ if __name__ == "__main__":
     lc = LqCoverage("/path/to/table.txt", isTranscript=False)
     lc.plot_coverage_dist()
     print(lc.get_unmapped_med_frac(), lc.get_high_div_frac())
-    print(lc.calc_xome_size(243346242))
+    print(lc.mean_main)
     lc.plot_unmapped_frac_terminal(adp5_pos=61, adp3_pos=30)
-    #lc.plot_qscore_dist()
+    lc.plot_qscore_dist()
     lc.plot_length_vs_coverage()
     print(lc.get_control_frac())
 
