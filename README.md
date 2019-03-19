@@ -1,7 +1,5 @@
 # LongQC
 
-![MacDown logo](http://macdown.uranusjr.com/static/images/logo-160.png)
-
 ## What is LongQC?
 LongQC is a tool for the data quality control of the PacBio and ONT long reads, and it has two functionalities: sample qc and platform qc.
 
