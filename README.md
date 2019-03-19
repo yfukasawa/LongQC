@@ -35,8 +35,8 @@ Anaconda should be easier choice. We recommend [anaconda3](https://www.anaconda.
 Modified version of minimap2 named minimap2-coverage is also required. If you are a Mac user, you have to prepare libc for argp.h.
 
 	cd /path/to/download/
-	git clone https://gitlab.kaust.edu.sa/fukasay/minimap2_mod.git
-	cd minimap2_mod && make extra
+	git clone https://github.com/yfukasawa/LongQC.git
+	cd LongQC/minimap2_mod && make extra
 
 Then, change the below variable in **longQC.py**.
 
