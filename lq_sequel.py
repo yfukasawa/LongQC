@@ -287,7 +287,7 @@ def run_platformqc(data_path, output_path, *, suffix=None, b_width = 1000):
             tot_lengths.append(l[3])
             hr_lengths.append(l[2])
 
-    (a, b) = lq_gamma.estimate_gamma_dist_scipy(hr_lengths, logger)
+    (a, b) = lq_gamma.estimate_gamma_dist_scipy(hr_lengths)
     logger.info("Fitting by Gamma dist finished.")
 
     _max  = np.array(hr_lengths).max()
