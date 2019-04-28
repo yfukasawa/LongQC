@@ -115,12 +115,14 @@ non-sense reads: this is similar to unmappable reads; however, mappability depen
 |High dispersion case|Normal dispersion case|
 |---|---|
 |![high](./LongQC_gallery/HighDispersion.png)|![normal](./LongQC_gallery/NormalCoverage.png)|
+
 This is actually not bad data, and that's why LongQC returns just warnings. The left PacBio data has a bit higher dispersion against the reference, and this is why median of depth fluctuates.
 
 ### Adapter ligation check
 |Iso-seq|1D^2|
 |---|---|
 |![iso](./LongQC_gallery/isoseq.png)|![1dsq](./LongQC_gallery/1dsq.png)|
+
 Due to the error rate, finding adapter (barcode too) sequences is not easy in the third gen data. Coverage analysis provides an overview of artifical sequences in flanking region. ONT data show different peak for ligation, rapid, and 1d^2 kit. In general, PacBio data shows no characteristic distribution, however, Iso-seq data shows weavy plots due to primer sequences in both terminals.
 
 ### Low quality data (Ave. error rate is 25%, Q6)
@@ -130,6 +132,7 @@ It is expected that a low quality dataset has high fraction of non-sense reads. 
 |Length plot|GC content plot|Coverage vs length plot|
 |---|---|---|
 |![length](./LongQC_gallery/length.png)|![gc](./LongQC_gallery/gc.png)|![gc](./LongQC_gallery/coverage.png)|
+
 These are the plots for a high quality public data. The overall stats show that this is a nice one, but as you can see plots show multimodal distributions. Although this is a genome sequencing data of a plant genome, about 10% of reads were well mapped to a *E.coli* genome. It is noteworthy they were not mapped to even organelle genomes. Short unmappable reads range from 3k to 6k, and coverage for this length shows a spike (median for this bin is out of plot area).
 
 ## The usage of platformqc
