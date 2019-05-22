@@ -94,7 +94,7 @@ def command_sample(args):
         suffix = ""
 
     ncpu = int(args.ncpu)
-    path_minimap2  = ""
+    path_minimap2  = os.path.join(os.path.dirname(os.path.abspath(__file__)), "minimap2_mod")
     pb_control     = None
     merged_control = None
     cov_path    = os.path.join(args.out, "analysis", "minimap2", "coverage_out" + suffix + ".txt")
