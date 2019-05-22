@@ -197,7 +197,6 @@ def command_sample(args):
             if args.short:
                 minimap2_med_score_threshold_short = 140
         if args.acc:
-            #minimap2_db_params = "-k 12 -w 1 -I %s" % args.inds 
             minimap2_db_params = "-k 12 -w 5 -I %s" % args.inds 
         else:
             minimap2_db_params = "-k 15 -w 5 -I %s" % args.inds
@@ -266,7 +265,7 @@ def command_sample(args):
     chunk_n = 0
     for (reads, n_seqs, n_bases) in open_seq_chunk(args.input, file_format_code, chunk_size=args.mem*1024**3, is_upper=True):
         ### iterate over chunks
-        ### 1. bam to fastq conversion -> another process
+        ### 1. bam to fastq conversion
         if file_format_code == 0:
             write_fastq(fastx_path, reads, is_chunk=True)
 
@@ -717,6 +716,28 @@ def command_sample(args):
 
     logger.info("Finished all processes.")
 
+    if args.db and file_format_code != 0:
+        #tempdb_path = os.path.join(args.out, "analysis", "minimap2", "t_db_minimap2")
+        if os.path.exists(tempdb_path):
+            try:
+                os.remove(tempdb_path)
+                logger.info("tmpdb %s was removed." % tempdb_path)
+            except (OSError, e):
+                logger.error("%s - %s." % (e.filename, e.strerror))
+        else:
+            logger.warning("tmpdb file %s does not exist. skip removal of this file." % tempdb_path)
+        if args.short:
+            #tempdb_short_path = os.path.join(args.out, "analysis", "minimap2", "t_db_minimap2_short")
+            if os.path.exists(tempdb_short_path):
+                try:
+                    os.remove(tempdb_short_path)
+                    logger.info("tmpdb %s was removed." % tempdb_short_path)
+                except (OSError, e):
+                    logger.error("%s - %s." % (e.filename, e.strerror))
+            else:
+                logger.warning("tmpdb file %s does not exist. skip removal of this file." % tempdb_short_path)
+        logger.info("Cleaned up temp db(s).")
+
 # stand alone
 if __name__ == "__main__":
     # parsing
@@ -786,7 +807,7 @@ if __name__ == "__main__":
                                'Default is 4G.', dest = 'inds', default = '4G')
 
     parser_sample.add_argument('-b', '--short',\
-                               help='this turns on the highly sensitive setting for very short range (<500bp).', action = 'store_true',\
+                               help='this turns on the highly sensitive setting for very short and erroneous reads (<500bp).', action = 'store_true',\
                                dest = 'short', default = None)
     parser_sample.add_argument('--pb', help='sample data from PacBio sequencers.',\
                                dest = 'pb', action = 'store_true', default = None)
