@@ -79,10 +79,10 @@ class LqCoverage:
     N_MBASE_COLUMN     = 2
     MED_READ_COV_CORS  = 4
     GOOD_READ_COV_CORS = 5
-    COVERAGE_COLUMN    = 6
+    T1_COVERAGE_COLUMN = 6
     QV_COLUMN          = 7
     DIV_COLUMN         = 8
-    T2_COVERAGE_COLUMN = 9
+    COVERAGE_COLUMN    = 9
 
     def __init__(self, table_path, isTranscript=False, control_filtering=None, engine='python'):
         self.df = pd.read_table(table_path, sep='\t', header=None)
@@ -101,7 +101,7 @@ class LqCoverage:
 
         if control_filtering is not None:
             self.df_control = pd.read_table(control_filtering, sep='\t', header=None)
-            self.control_reads = self.df_control[self.df_control[LqCoverage.COVERAGE_COLUMN] >= 0.5][0].tolist()
+            self.control_reads = self.df_control[self.df_control[LqCoverage.T1_COVERAGE_COLUMN] >= 0.5][0].tolist()
             self.df = self.df[~self.df[LqCoverage.READ_NAME_COLUMN].isin(self.control_reads)] # remove control from the list
 
         # for final conclusion
@@ -160,6 +160,7 @@ class LqCoverage:
             logger.warning("Unmapped bad read fraction has no value. Do estimation first.")
         return self.unmapped_bad_frac
 
+    # experimental
     def get_high_div_frac(self):
         if self.high_div_frac == -1.0:
             logger.warning("Highly divergent read fraction has no value. Do estimation first.")
@@ -178,7 +179,7 @@ class LqCoverage:
         return self.warnings
 
     def __est_coverage(self):
-        self.unmapped_frac_trimmed   = self.df[LqCoverage.COVERAGE_COLUMN].values[np.where(self.df[LqCoverage.COVERAGE_COLUMN] == 0.0)].shape[0] \
+        self.unmapped_frac_trimmed   = self.df[LqCoverage.T1_COVERAGE_COLUMN].values[np.where(self.df[LqCoverage.T1_COVERAGE_COLUMN] == 0.0)].shape[0] \
                                        / self.df.shape[0]
         self.unmapped_frac_untrimmed = self.df[LqCoverage.N_MBASE_COLUMN].values[np.where(self.df[LqCoverage.N_MBASE_COLUMN] == 0.0)].shape[0] \
                                        / self.df.shape[0]
@@ -188,7 +189,7 @@ class LqCoverage:
                                        / self.df.shape[0]
         self.high_div_frac           = self.df[LqCoverage.DIV_COLUMN].values[\
                                        np.where((self.df[LqCoverage.DIV_COLUMN] >= LqCoverage.DIV_SCORE_THRESHOLD) & \
-                                                (self.df[LqCoverage.COVERAGE_COLUMN] >= LqCoverage.COV_THRESHOLD_FOR_DIV_SC) & \
+                                                (self.df[LqCoverage.T1_COVERAGE_COLUMN] >= LqCoverage.COV_THRESHOLD_FOR_DIV_SC) & \
                                                 (self.df[LqCoverage.MED_READ_COV_CORS] != '0') )].shape[0] \
                                        / self.df.shape[0]
         #logger.info("Unmapped fraction: %.3f (naive), %.3f (coverage considered)" % (self.unmapped_frac_untrimmed, self.unmapped_frac_trimmed))
@@ -441,8 +442,11 @@ class LqCoverage:
         self.__check_outlier_coverage(interval)
 
     def __gen_boxplot_length_vs_coverage(self, interval):
+        self.df.loc[self.df[LqCoverage.QLENGTH_COLUMN] >= 3000, 'MERGED_COVERAGE'] = self.df[LqCoverage.COVERAGE_COLUMN]
+        self.df.loc[self.df[LqCoverage.QLENGTH_COLUMN] <  3000, 'MERGED_COVERAGE'] = self.df[LqCoverage.T1_COVERAGE_COLUMN]
         self.df['Binned read length'] = np.floor(self.df[LqCoverage.QLENGTH_COLUMN].values/interval)
-        return self.df.boxplot(column=LqCoverage.COVERAGE_COLUMN, by='Binned read length', sym='+', rot=90, figsize=(2*int(max(self.df['Binned read length'])/5+0.5), 4.8))
+        #return self.df.boxplot(column=LqCoverage.COVERAGE_COLUMN, by='Binned read length', sym='+', rot=90, figsize=(2*int(max(self.df['Binned read length'])/5+0.5), 4.8))
+        return self.df.boxplot(column='MERGED_COVERAGE', by='Binned read length', sym='+', rot=90, figsize=(2*int(max(self.df['Binned read length'])/5+0.5), 4.8))
 
     def __check_outlier_coverage(self, interval):
         stats = self.df.groupby('Binned read length')[LqCoverage.COVERAGE_COLUMN].agg([np.median, np.size])
@@ -582,7 +586,7 @@ class LqCoverage:
 # test
 if __name__ == "__main__":
 
-    lc = LqCoverage("/path/to/table.txt", isTranscript=False)
+    lc = LqCoverage("/path/to/coverage.txt", isTranscript=False)
     lc.plot_coverage_dist()
     print(lc.get_unmapped_med_frac(), lc.get_high_div_frac())
     print(lc.mean_main)
