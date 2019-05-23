@@ -776,8 +776,8 @@ if __name__ == "__main__":
                                help='applies the preset for transcripts, RNA or cDNA sequences', \
                                dest = 'transcript', action = 'store_true', default = None)
     parser_sample.add_argument('-n', '--n_sample',\
-                               help='the number of sequences for sampling. (>0 and <=10000) [Default is 10000].', type=int,\
-                               dest = 'nsample', default = 10000)
+                               help='the number of sequences for sampling. (>0 and <=10000) [Default is 5000].', type=int,\
+                               dest = 'nsample', default = 5000)
     parser_sample.add_argument('-s', '--sample_name', \
                                help='sample name is added as a suffix for each output file.', type=str,\
                                dest = 'suf', default = None)
