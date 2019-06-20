@@ -80,6 +80,7 @@ def construct_polread(l):
 
     tot = 0
     hq  = 0
+    ad_num = 0
 
     ql_cigar_like = [] # quality
     st_cigar_like = [] # seq type
@@ -115,6 +116,7 @@ def construct_polread(l):
                 s_flag = True
             elif c == 'A':
                 a_flag = True
+                ad_num += 1
             
         tot += e-s #old e and new s can be the same. do not add +1.
         st_cigar_like.append('%d%s' % (e-s+1, c))
@@ -130,9 +132,9 @@ def construct_polread(l):
     #if s_flag and a_flag:
     if s_flag:
         # polymerase read
-        return ("".join(ql_cigar_like), "".join(st_cigar_like), hq, tot, True)
+        return ("".join(ql_cigar_like), "".join(st_cigar_like), hq, tot, True, ad_num)
     else:
-        return ("".join(ql_cigar_like), "".join(st_cigar_like), hq, tot, False)
+        return ("".join(ql_cigar_like), "".join(st_cigar_like), hq, tot, False, ad_num)
 
 def parse_sts_xml(filepath, ns=None):
     tree = et.parse(filepath)
@@ -207,9 +209,10 @@ def run_platformqc(data_path, output_path, *, suffix=None, b_width = 1000):
         suffix = ""
     else:
         suffix = "_" + suffix
-    log_path  = os.path.join(output_path, "log", "log_sequel_platformqc" + suffix + ".txt")
-    fig_path  = os.path.join(output_path, "fig", "fig_sequel_platformqc_length" + suffix + ".png")
-    json_path = os.path.join(output_path, "QC_vals_sequel"  + suffix + ".json")
+    log_path     = os.path.join(output_path, "log", "log_sequel_platformqc" + suffix + ".txt")
+    fig_path     = os.path.join(output_path, "fig", "fig_sequel_platformqc_length" + suffix + ".png")
+    fig_path_bar = os.path.join(output_path, "fig", "fig_sequel_platformqc_adapter" + suffix + ".png")
+    json_path    = os.path.join(output_path, "QC_vals_sequel"  + suffix + ".json")
     # json
     tobe_json = {}
 
@@ -259,6 +262,7 @@ def run_platformqc(data_path, output_path, *, suffix=None, b_width = 1000):
     hr_fraction        = []
     tot_lengths        = []
     hr_lengths         = []
+    ad_num_stat        = {}
     control_throughput = 0
 
     if get_readtype(scrap_bam.header) == 'SCRAP':
@@ -286,6 +290,28 @@ def run_platformqc(data_path, output_path, *, suffix=None, b_width = 1000):
             hr_fraction.append(l[2]/l[3])
             tot_lengths.append(l[3])
             hr_lengths.append(l[2])
+            if l[5] in ad_num_stat:
+                ad_num_stat[l[5]] += 1
+            else:
+                ad_num_stat[l[5]] = 1
+
+
+    max_adnum = max(ad_num_stat.keys())
+    min_adnum = min(ad_num_stat.keys())
+
+    left   = []
+    height = [] 
+    for i in range(min_adnum, max_adnum+1):
+        left.append(i)
+        if i in ad_num_stat:
+            height.append(ad_num_stat[i])
+        else:
+            height.append(0)
+
+    plt.bar(left, height)
+    plt.savefig(fig_path_bar, bbox_inches="tight")
+    plt.close()
+    logger.info("Plotted bar plot for adpter occurence")
 
     (a, b) = lq_gamma.estimate_gamma_dist_scipy(hr_lengths)
     logger.info("Fitting by Gamma dist finished.")
