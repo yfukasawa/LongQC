@@ -333,6 +333,7 @@ def run_platformqc(data_path, output_path, *, suffix=None, b_width = 1000):
     tobe_json["Mean_polread_length"]  = float(_mean)
     tobe_json["N50_polread_length"]   = float(_n50)
     tobe_json["Mean_HQ_fraction"]     = float(np.mean(fracs))
+    tobe_json["Adapter_observation"]  = ad_num_stat
 
     with open(json_path, "w") as f:
         logger.info("Quality measurements were written into a JSON file: %s" % json_path)
