@@ -31,7 +31,8 @@ import lq_rs
 import lq_sequel
 
 from lq_gamma    import estimate_gamma_dist_scipy, plot_length_dist
-from lq_utils    import eprint, open_seq_chunk, get_N50, subsample_from_chunk, write_fastq, get_Qx_bases, copytree, guess_format
+from lq_utils    import (eprint, open_seq_chunk, get_N50, subsample_from_chunk,
+                         write_fastq, get_Qx_bases, copytree, guess_format, enc_b64_str)
 from lq_adapt    import cut_adapter
 from lq_gcfrac   import LqGC
 from lq_exec     import LqExec
@@ -638,15 +639,16 @@ def command_sample(args):
     if args.sequel :
         root_dict['sequel'] = True
 
-    root_dict['rl'] = {'name': os.path.basename(fig_path),\
+    root_dict['rl'] = {'name':enc_b64_str(fig_path),\
                       'stats':OrderedDict([\
                                ('Mean read length', "%.3f" % mean_len),\
                                ('N50', "%.3f" % n50)])}
-    root_dict['rq'] = {'name': os.path.basename(fig_path_rq)}
+    root_dict['rq'] = {'name':enc_b64_str(fig_path_rq)}
 
     if args.transcript:
-        root_dict['rc'] = {'cov_plot_name': os.path.basename(fig_path_cv), 'cov_over_len_plot_name': os.path.basename(fig_path_cl),\
-                           'cov_ovlp_qv_plot_name': os.path.basename(fig_path_qv),\
+        root_dict['rc'] = {'cov_plot_name':enc_b64_str(fig_path_cv),
+                           'cov_over_len_plot_name':enc_b64_str(fig_path_cl),\
+                           'cov_ovlp_qv_plot_name':enc_b64_str(fig_path_qv),\
                            'stats':OrderedDict([\
                                                 ('Number of sampled reads', s_n_seqs),\
                                                 ('Mode of per read coverage', "%.3f" % lc.get_logn_mode()),\
@@ -654,21 +656,22 @@ def command_sample(args):
                                                 ('sigma of per read coverage', "%.3f" % lc.get_logn_sigma()), \
                                                 ('Crude estimated Xome size', lc.calc_xome_size(throughput))])}
     else:
-        root_dict['rc'] = {'cov_plot_name': os.path.basename(fig_path_cv), 'cov_over_len_plot_name': os.path.basename(fig_path_cl),\
-                           'cov_ovlp_qv_plot_name': os.path.basename(fig_path_qv),\
+        root_dict['rc'] = {'cov_plot_name':enc_b64_str(fig_path_cv),
+                           'cov_over_len_plot_name':enc_b64_str(fig_path_cl),\
+                           'cov_ovlp_qv_plot_name':enc_b64_str(fig_path_qv),\
                            'stats':OrderedDict([\
                                                 ('Number of sampled reads', s_n_seqs),\
                                                 ('Mean per read coverage', "%.3f" % lc.get_mean()),\
                                                 ('S.D. per read coverage', "%.3f" % lc.get_sd()), \
                                                 ('Crude estimated Xome size', lc.calc_xome_size(throughput))])}
 
-    root_dict['gc'] = {'name': os.path.basename(fig_path_gc),\
+    root_dict['gc'] = {'name':enc_b64_str(fig_path_gc),\
                       'stats':OrderedDict([\
                                ('Mean per read GC content', "%.3f %%" % (100.0 * gc_read_mean)),\
                                ('s.d. per read GC content', "%.3f %%" % (100.0 * gc_read_sd))
                                        ])}
-    root_dict['fr'] = {'name': os.path.basename(fig_path_ta)}
-    root_dict['sc'] = {'name': os.path.basename(fig_path_ma)}
+    root_dict['fr'] = {'name':enc_b64_str(fig_path_ta)}
+    root_dict['sc'] = {'name':enc_b64_str(fig_path_ma)}
 
     # alerts
     root_dict['warns'] = OrderedDict()
@@ -703,14 +706,14 @@ def command_sample(args):
     html = tpl.render( root_dict )
     with open(html_path, "wb") as f:
         f.write(html.encode('utf-8'))
-    if not os.path.isdir(os.path.join(args.out, "css")):
-        os.makedirs(os.path.join(args.out, "css"), exist_ok=True)
-    if not os.path.isdir(os.path.join(args.out, "vendor")):
-        os.makedirs(os.path.join(args.out, "vendor"), exist_ok=True)
+    #if not os.path.isdir(os.path.join(args.out, "css")):
+    #    os.makedirs(os.path.join(args.out, "css"), exist_ok=True)
+    #if not os.path.isdir(os.path.join(args.out, "vendor")):
+    #    os.makedirs(os.path.join(args.out, "vendor"), exist_ok=True)
     if not os.path.isdir(os.path.join(args.out, "figs")):
         os.makedirs(os.path.join(args.out, "figs"), exist_ok=True)
-    copytree(os.path.join(template_dir, 'css'), os.path.join(args.out, "css"))
-    copytree(os.path.join(template_dir, 'vendor'), os.path.join(args.out, "vendor"))
+    #copytree(os.path.join(template_dir, 'css'), os.path.join(args.out, "css"))
+    #copytree(os.path.join(template_dir, 'vendor'), os.path.join(args.out, "vendor"))
     copytree(os.path.join(template_dir, 'figs'), os.path.join(args.out, "figs"))
     logger.info("Generated a summary html.")
 
@@ -809,11 +812,11 @@ if __name__ == "__main__":
     parser_sample.add_argument('-b', '--short',\
                                help='this turns on the highly sensitive setting for very short and erroneous reads (<500bp).', action = 'store_true',\
                                dest = 'short', default = None)
-    parser_sample.add_argument('--pb', help='sample data from PacBio sequencers.',\
+    parser_sample.add_argument('--pb', help=argparse.SUPPRESS,\
                                dest = 'pb', action = 'store_true', default = None)
-    parser_sample.add_argument('--sequel', help='sample data from Sequel of PacBio. this option will be overwritten by -x.',\
+    parser_sample.add_argument('--sequel', help=argparse.SUPPRESS,\
                                dest = 'sequel', action = 'store_true', default = None)
-    parser_sample.add_argument('--ont', help='sample data from ONT sequencers. this option will be overwritten by -x.',\
+    parser_sample.add_argument('--ont', help=argparse.SUPPRESS,\
                                dest = 'ont', action = 'store_true', default = None)
     parser_sample.set_defaults(handler=command_sample)
 

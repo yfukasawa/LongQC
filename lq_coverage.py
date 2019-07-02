@@ -454,7 +454,9 @@ class LqCoverage:
         three_sigma = np.where((meds > self.get_mean() + 3*self.get_sd()) | (meds <= self.get_mean() - 3*self.get_sd()))
         if len(three_sigma[0]) > 0:
             #error case
-            self.errors.append(('Coverage error', 'Coverage is not homogenous over the read length.'))
+            #self.errors.append(('Coverage error', 'Coverage is not homogenous over the read length.'))
+            # change this to warnings
+            self.warnings.append(('Coverage warning', 'Coverage might not be homogenous over the read length.'))
         else:
             two_sigma = np.where((meds > self.get_mean() + 2*self.get_sd()) | (meds <= self.get_mean() - 2*self.get_sd()))
             if len(two_sigma[0]):

@@ -1,8 +1,14 @@
 import sys, os, pysam, shutil
+import base64
 import numpy  as np
 
 from logging import getLogger
 logger = getLogger(__name__)
+
+def enc_b64_str(file_path):
+    with open(file_path, "rb") as f:
+        enc = base64.b64encode(f.read())
+    return enc.decode('utf-8')
 
 # https://stackoverflow.com/questions/5574702/how-to-print-to-stderr-in-python
 def eprint(*args, **kwargs):
@@ -23,20 +29,24 @@ def rgb(r,g,b):
     return [ r/255, g/255, b/255 ]
 
 def get_N50(vals):
-    t = np.array(vals).sum()/2
+    a = np.array(vals)
+    t = a.sum()/2
     cnt = 0
-    for x in np.sort(vals):
+    a[::-1].sort() # this cannot be evaluated properly in for-loop
+    for x in a:
         cnt += x
         if cnt >= t: return x
 
 def get_NXX(vals, target=90):
-    t = np.array(vals).sum() * target/100
+    a = np.array(vals)
+    t = a.sum() * target/100
     if target < 0:
         return vals[0]
     elif target > 100:
         return vals[-1]
     cnt = 0
-    for x in np.sort(vals):
+    a[::-1].sort() # this cannot be evaluated properly in for-loop
+    for x in a:
         cnt += x
         if cnt >= t: return x
 
