@@ -1,4 +1,4 @@
-import math, logging
+import math, logging, sys
 import numpy             as np
 import pandas            as pd
 import scipy.stats       as st
@@ -133,6 +133,7 @@ class LqCoverage:
     def get_logn_mode(self):
         if not self.mode_logn_main:
             logger.warning("Mode of lognormal has no value. Do estimation first.")
+            return None
         return self.mode_logn_main
 
     def get_logn_mu(self):
@@ -144,6 +145,15 @@ class LqCoverage:
         if not self.sigma_logn_main:
             logger.warning("sigma of lognormal has no value. Do estimation first.")
         return self.sigma_logn_main
+
+    def get_expected_zero_rate(self):
+        if not self.mode_logn_main and not self.mean_main:
+            logger.warning("Mode of lognormal and mean of GMM has no value. Do estimation first.")
+            return None
+        elif not self.mode_logn_main:
+            return (self.mean_main, 1.3865*0.64086**self.mean_main)
+        else:
+            return (self.mode_logn_main, 1.3865*0.64086**self.mode_logn_main) # experimental
 
     def get_unmapped_frac(self):
         if self.unmapped_frac_trimmed == -1.0:
@@ -165,6 +175,12 @@ class LqCoverage:
         if self.high_div_frac == -1.0:
             logger.warning("Highly divergent read fraction has no value. Do estimation first.")
         return self.high_div_frac
+
+    def get_control_num(self):
+        if self.control_reads:
+            return len(self.control_reads)
+        else:
+            return 0.0
 
     def get_control_frac(self):
         if self.control_reads:
@@ -411,7 +427,7 @@ class LqCoverage:
         ### read score after size binning.
         subplot  = self.__gen_boxplot_length_vs_coverage(interval)
         bin_size = self.df.groupby('Binned read length').size()
-        boundary_reliable_bin = np.where(bin_size >= 50)[0].max()
+        boundary_reliable_bin = np.where(bin_size >=  LqCoverage.LENGTH_BIN_THRESHOLD)[0].max()
         xmin, xmax = plt.gca().get_xlim()
         plt.axvspan(boundary_reliable_bin+1.5, xmax+1, facecolor='gray', alpha=0.1)
         #plt.axhline(y=self.mean_main, linestyle='dashed', linewidth=2, color='red', alpha=0.2) # a bit misleading in case skewed dist
@@ -429,6 +445,8 @@ class LqCoverage:
             plt.axhline(y=yc, color="royalblue", alpha=0.4, lw=1)
             plt.text(0, yc, r'3$\sigma$', color="royalblue")
 
+            self.__check_outlier_coverage(interval)
+
         #plt.savefig('Box_plot_quality.png')
         if fp:
             plt.savefig(fp, bbox_inches="tight")
@@ -438,8 +456,6 @@ class LqCoverage:
         #interval = est_confidence_interval_params(df, 2, nbs=1000)
         #print(interval)
         #print(st.norm.ppf(0.2, loc=interval[0][1], scale=interval[1][0]))
-
-        self.__check_outlier_coverage(interval)
 
     def __gen_boxplot_length_vs_coverage(self, interval):
         self.df.loc[self.df[LqCoverage.QLENGTH_COLUMN] >= 3000, 'MERGED_COVERAGE'] = self.df[LqCoverage.COVERAGE_COLUMN]
@@ -457,11 +473,10 @@ class LqCoverage:
             #self.errors.append(('Coverage error', 'Coverage is not homogenous over the read length.'))
             # change this to warnings
             self.warnings.append(('Coverage warning', 'Coverage might not be homogenous over the read length.'))
-        else:
-            two_sigma = np.where((meds > self.get_mean() + 2*self.get_sd()) | (meds <= self.get_mean() - 2*self.get_sd()))
-            if len(two_sigma[0]):
-                #warning
-                self.warnings.append(('Coverage warning', 'Coverage might not be homogenous over the read length.'))
+        #else:
+        #    two_sigma = np.where((meds > self.get_mean() + 2*self.get_sd()) | (meds <= self.get_mean() - 2*self.get_sd()))
+        #    if len(two_sigma[0]):
+        #        self.warnings.append(('Coverage warning', 'Coverage might not be homogenous over the read length.'))
 
     # est_coverage_dist sometimes return weird mu, maybe due to local maxima, so
     #  below method is an ugly working solution.
@@ -588,14 +603,21 @@ class LqCoverage:
 # test
 if __name__ == "__main__":
 
-    lc = LqCoverage("/path/to/coverage.txt", isTranscript=False)
+    lc = LqCoverage(sys.argv[1], isTranscript=False)
     lc.plot_coverage_dist()
-    print(lc.get_unmapped_med_frac(), lc.get_high_div_frac())
-    print(lc.mean_main)
+    if lc.mode_logn_main:
+        print("Mode of LogN mix: %.3f" % lc.mode_logn_main)
+        print("Mean of GMM: %.3f" % lc.mean_main)
+    else:
+        print("Mean of GMM: %.3f" % lc.mean_main)
     lc.plot_unmapped_frac_terminal(adp5_pos=61, adp3_pos=30)
     lc.plot_qscore_dist()
     lc.plot_length_vs_coverage()
-    print(lc.get_control_frac())
+    print("%% non-sense reads: %.3f" % lc.get_unmapped_med_frac())
+    print("%% control reads: %.3f" % lc.get_control_frac())
+
+    print("Warnings: ", lc.warnings)
+    print("Errors: ", lc.errors)
 
     """
     # internal break. experimental.

@@ -127,8 +127,17 @@ def command_sample(args):
     minimap2_db_params = ''
     minimap2_med_score_threshold = 0
 
+    # for BCL
+    '''
+    db_index_pb  = os.path.join(os.path.dirname(os.path.abspath(__file__)), "db", "nt_pb.index")
+    db_index_ont = os.path.join(os.path.dirname(os.path.abspath(__file__)), "db", "nt_ont.index")
+    db_paf       = None
+    db_paf_err   = None
+    '''
+
     nonsense_read_error_threshold = 0.45
-    nonsense_read_warn_threshold = 0.25
+    nonsense_read_warn_threshold  = 0.25
+    very_low_coverage_threshold   = 6
 
     # output_path will be made too.
     if not os.path.isdir(os.path.join(args.out, "analysis", "minimap2")):
@@ -153,6 +162,8 @@ def command_sample(args):
     logger.addHandler(sh)
     logger.addHandler(fh)
     #####################
+
+    logger.info("Cmd: %s" % " ".join(sys.argv))
 
     if args.preset:
         p = args.preset
@@ -572,6 +583,48 @@ def command_sample(args):
         lc.plot_length_vs_coverage(fig_path_cl)
     logger.info("Generated coverage related plots.")
 
+    if (args.transcript and float(lc.get_logn_mode()) < very_low_coverage_threshold) \
+       or (float(lc.get_mean()) < very_low_coverage_threshold):
+        logger.info("Coverage looks to be very low. Turns on the very low coverage mode.")
+        very_low_coverage_mode = True
+
+        if args.pb:
+            nonsense_read_error_threshold = 0.1
+            nonsense_read_warn_threshold  = 0.075
+            
+        '''
+        # for BCL use. very low coverage mode
+        le_db      = LqExec(os.path.join(path_minimap2, "minimap2"))
+        db_paf     = os.path.join(args.out, "analysis", "minimap2", "db_hits" + suffix + ".paf")
+        db_paf_err = os.path.join(args.out, "analysis", "minimap2", "db_hits_err" + suffix + ".txt")
+
+        if args.pb:
+            le_db_args = shlex.split("%s -t %d %s %s" \
+                                     % ("-x map-pb --secondary=no", int(args.ncpu), db_index_pb, sample_path))
+        elif args.ont:
+            le_db_args = shlex.split("%s -t %d %s %s" \
+                                     % ("-x map-ont --secondary=no", int(args.ncpu), db_index_ont, sample_path))
+        le_db.exec(*le_db_args, out=db_paf, err=db_paf_err)
+        logger.info("Very low coverage mode: DB retrieval has started. Process is %s" % le_db.get_pid())
+
+        # here wait until the minimap procerss finishes
+        while True:
+            if le_db.get_poll() is not None:
+                logger.info("Process %s for %s terminated." % (le_db.get_pid(), le_db.get_bin_path()))
+                break
+            logger.info("Very low coverage mode: DB retrieval is still on going...")
+            sleep(100)
+
+        lp = LqPaf(db_paf)
+        mapped_ids = lp.get_mapped_reads_ids()
+        '''
+    else:
+        # enough coverage to estimate stats
+        very_low_coverage_mode = False
+
+    # for laggy file system, we neeed to wait a bit. otherwise, no data exception will be raised.
+    sleep(10)
+
     tobe_json["Coverage_stats"] = {}
     tobe_json["Coverage_stats"]["Estimated non-sense read fraction"] = float(lc.get_unmapped_med_frac())
     #tobe_json["Coverage_stats"]["Reliable Highly diverged fraction"] = float(lc.get_high_div_frac())
@@ -585,6 +638,7 @@ def command_sample(args):
     else:
         tobe_json["Coverage_stats"]["Mean_coverage"] = float(lc.get_mean())
         tobe_json["Coverage_stats"]["SD_coverage"]   = float(lc.get_sd())
+        # adjust threshold for very low coverage
     tobe_json["Coverage_stats"]["Estimated crude Xome size"] = str(lc.calc_xome_size(throughput))
 
     with open(json_path, "w") as f:
@@ -683,10 +737,21 @@ def command_sample(args):
         elif q7/throughput <= 0.5:
             root_dict['errors']['Too low Q7'] = 'This value should be higher than 50%. Ideally, higher than 65%.'
 
-    if lc.get_unmapped_med_frac() >= nonsense_read_warn_threshold and lc.get_unmapped_med_frac() < nonsense_read_error_threshold:
-        root_dict['warns']['High non-sense read fraction'] = 'This value should be lower than %d%%.' % int(nonsense_read_warn_threshold*100)
-    elif lc.get_unmapped_med_frac() >= nonsense_read_error_threshold:
-        root_dict['errors']['Too high non-sense read fraction'] = 'This value should not be higher than %d%%.' % int(nonsense_read_error_threshold*100)
+    if very_low_coverage_mode:
+        root_dict['warns']['Low coverage'] = 'Coverage of data looks to be very low.'
+        e_zero = lc.get_expected_zero_rate()
+        logger.info("Low coverage mode: expected zero rate for the given coverage %.2f is %.2f." % e_zero )
+        #adj_e = float(1.0 - len(mapped_ids)/float(s_n_seqs-lc.get_control_num()))
+        adj_e = lc.get_unmapped_med_frac() - e_zero[1]
+        if adj_e >= nonsense_read_warn_threshold and adj_e < nonsense_read_error_threshold:
+            root_dict['warns']['High non-sense read fraction'] = 'This value should be lower than %.2f%%.' % float((nonsense_read_warn_threshold+e_zero[1])*100)
+        elif adj_e >= nonsense_read_error_threshold:
+            root_dict['errors']['Too high non-sense read fraction'] = 'This value should not be higher than %.2f%%.' % float((nonsense_read_error_threshold+e_zero[1])*100)
+    else:
+        if lc.get_unmapped_med_frac() >= nonsense_read_warn_threshold and lc.get_unmapped_med_frac() < nonsense_read_error_threshold:
+            root_dict['warns']['High non-sense read fraction'] = 'This value should be lower than %d%%.' % int(nonsense_read_warn_threshold*100)
+        elif lc.get_unmapped_med_frac() >= nonsense_read_error_threshold:
+            root_dict['errors']['Too high non-sense read fraction'] = 'This value should not be higher than %d%%.' % int(nonsense_read_error_threshold*100)
 
     if num_trim5 and not args.pb:
         if num_trim5/len(lengths) <= 0.3:
