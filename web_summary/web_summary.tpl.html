@@ -396,16 +396,10 @@
 		  {% for k, v in errors.items() %}
 		  <p> {{k}} -> {{v}} </p>
 		  {% endfor %}
-
-		  {% if warns %}
-		  {% for k, v in warns.items() %}
-		  <p> {{k}} -> {{v}} </p>
-		  {% endfor %}
-		  {% endif %}
 		</div>
 		{% endif %}
 
-		{% if warns and not errors %}
+		{% if warns %}
 		<div class="alert alert-warning">
 		  <span class="symbol warn">
 		  </span>
