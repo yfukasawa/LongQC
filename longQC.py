@@ -584,6 +584,7 @@ def command_sample(args):
     logger.info("Generated coverage related plots.")
 
     if (args.transcript and float(lc.get_logn_mode()) < very_low_coverage_threshold) \
+       or (lc.is_low_coverage() and float(lc.get_logn_mode()) < very_low_coverage_threshold) \
        or (float(lc.get_mean()) < very_low_coverage_threshold):
         logger.info("Coverage looks to be very low. Turns on the very low coverage mode.")
         very_low_coverage_mode = True
@@ -632,9 +633,13 @@ def command_sample(args):
         tobe_json["Coverage_stats"]['Estimated spiked-in control read fraction'] = float(lc.get_control_frac())
 
     if args.transcript:
-        tobe_json["Coverage_stats"]["Mode_coverage"] = float(lc.get_logn_mode())
-        tobe_json["Coverage_stats"]["mu_coverage"]   = float(lc.get_logn_mu())
-        tobe_json["Coverage_stats"]["sigma_coverage"]   = float(lc.get_logn_sigma())
+        tobe_json["Coverage_stats"]["Mode_coverage"]  = float(lc.get_logn_mode())
+        tobe_json["Coverage_stats"]["mu_coverage"]    = float(lc.get_logn_mu())
+        tobe_json["Coverage_stats"]["sigma_coverage"] = float(lc.get_logn_sigma())
+    elif lc.is_low_coverage():
+        tobe_json["Coverage_stats"]["Mode_coverage"]  = float(lc.get_logn_mode())
+        tobe_json["Coverage_stats"]["mu_coverage"]    = float(lc.get_logn_mu())
+        tobe_json["Coverage_stats"]["sigma_coverage"] = float(lc.get_logn_sigma())
     else:
         tobe_json["Coverage_stats"]["Mean_coverage"] = float(lc.get_mean())
         tobe_json["Coverage_stats"]["SD_coverage"]   = float(lc.get_sd())
@@ -709,6 +714,18 @@ def command_sample(args):
                                                 ('mu of per read coverage', "%.3f" % lc.get_logn_mu()), \
                                                 ('sigma of per read coverage', "%.3f" % lc.get_logn_sigma()), \
                                                 ('Crude estimated Xome size', lc.calc_xome_size(throughput))])}
+
+    elif lc.is_low_coverage():
+        root_dict['rc'] = {'cov_plot_name':enc_b64_str(fig_path_cv),
+                           'cov_over_len_plot_name':enc_b64_str(fig_path_cl),\
+                           'cov_ovlp_qv_plot_name':enc_b64_str(fig_path_qv),\
+                           'stats':OrderedDict([\
+                                                ('Number of sampled reads', s_n_seqs),\
+                                                ('Mode of per read coverage', "%.3f" % lc.get_logn_mode()),\
+                                                ('mu of per read coverage', "%.3f" % lc.get_logn_mu()), \
+                                                ('sigma of per read coverage', "%.3f" % lc.get_logn_sigma()), \
+                                                ('Crude estimated Xome size', lc.calc_xome_size(throughput))])}
+
     else:
         root_dict['rc'] = {'cov_plot_name':enc_b64_str(fig_path_cv),
                            'cov_over_len_plot_name':enc_b64_str(fig_path_cl),\
@@ -738,7 +755,10 @@ def command_sample(args):
             root_dict['errors']['Too low Q7'] = 'This value should be higher than 50%. Ideally, higher than 65%.'
 
     if very_low_coverage_mode:
-        root_dict['warns']['Low coverage'] = 'Coverage of data looks to be very low.'
+        if lc.is_low_coverage():
+            root_dict['warns']['Low coverage'] = 'Coverage of data looks to be very low/skewed.'
+        else:
+            root_dict['warns']['Low coverage'] = 'Coverage of data looks to be very low.'
         e_zero = lc.get_expected_zero_rate()
         logger.info("Low coverage mode: expected zero rate for the given coverage %.2f is %.2f." % e_zero )
         #adj_e = float(1.0 - len(mapped_ids)/float(s_n_seqs-lc.get_control_num()))

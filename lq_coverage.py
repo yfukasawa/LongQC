@@ -98,6 +98,7 @@ class LqCoverage:
         self.cov_main  = None
         self.main_comp_index = None
         self.control_reads = None
+        self.low_coverage = None
 
         if control_filtering is not None:
             self.df_control = pd.read_table(control_filtering, sep='\t', header=None)
@@ -169,6 +170,12 @@ class LqCoverage:
         if self.unmapped_bad_frac == -1.0:
             logger.warning("Unmapped bad read fraction has no value. Do estimation first.")
         return self.unmapped_bad_frac
+
+    def is_low_coverage(self):
+        if self.low_coverage != None:
+            return self.low_coverage
+        else:
+            return None
 
     # experimental
     def get_high_div_frac(self):
@@ -340,6 +347,8 @@ class LqCoverage:
     def calc_xome_size(self, throughput):
         m_size = -1
         if self.isTranscript:
+            m_size = int((throughput * (1.0 - self.unmapped_frac_med)) / self.mode_logn_main)
+        elif self.low_coverage:
             m_size = int((throughput * (1.0 - self.unmapped_frac_med)) / self.mode_logn_main)
         else:
             # gmm
