@@ -531,6 +531,11 @@
 		      All in all, if two boxes are close, please carefully check the coverage plot.
 		      Lastly, Sequel datasets cannot generate QV plot because there is no Phred score for Sequel at present.
 		    </dd>
+		    <dt class="help-content">Genomes having relatively long repeats:</dt>
+		    <dd class="help-content">
+		      Default configuration of LongQC can cope with short repeats or simple repeats, however, some complicated genomes like plant genomes sometimes show long-tail in Per read coverage distributions. Also, the plot for per read coverage over different length reads can fluctuate.
+		      We're working on this known issue, and we plan to update LongQC as soon as we implement the code.
+		    </dd>
 		    <dt class="help-content">Note:</dt>
 		    <dd class="help-content">
 		      It is also noteworthy that mean/median coverage shown in this section can be smaller than the result using references. Because mapping reads onto uncorrected error-prone sequences is less sensitive, coverage is affected by such less sensitive result.
