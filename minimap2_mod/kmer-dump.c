@@ -47,25 +47,10 @@ const char *argp_program_bug_address = "<yoshinori.fukasawa@kaust.edu.sa>";
 struct arguments
 {
     short h_flag, ava_flag, avs_flag, filter_flag;
-    int th_ef_minimizer;
     int load_n_threads;
     int map_n_threads;
-    int min_coverage;
-    int num_subsetseq;
-    int flag_mm_ava;
-    int flag_lq_ava;
-    int max_gap;
-    int min_cnt;
-    int min_score;
-    int min_score_med;
-    int min_score_good;
-    int chain_skip;
-    int max_ohang;
-    int min_ovlp;
-    //int min_match;
     int param_k;
     int param_w;
-    double min_ratio;
     uint64_t batch_size;
     char *args[2];
     char *dumpf;
@@ -127,7 +112,7 @@ struct argp_option options[] =
     { "homopolymer",       'H',     0,  0, "use homopolymer-compressed k-mer"},
     { "k-mer",             'k', "INT",  0, "k-mer size (no larger than 28)"},
     { "window",            'w', "INT",  0, "minizer window size"},
-    { "index-size",        'I', "STRING",  0, "split index for every ~NUM input bases"},
+    { "index-size",        'I', "STRING", 0, "split index for every ~NUM input bases"},
     { "dump-index",        'd', "FILE", 0, "dump index to FILE"},
     { 0, 0, 0, 0, "Misc options", 2},
     { "threads",           't', "INT",  0, "number of threads"},
@@ -275,75 +260,67 @@ int main(int argc, char *argv[])
     ks = kseq_init(f);
     i = 0;
     
-    if(a.th_ef_minimizer >= 0){
-        // vars to get minimizers. used for paper revision
-        mm128_v minis;
-        int h_ret;
-        void *km = km_init();
-        khiter_t itr;
-        uint64_t *b; int32_t n_b; uint64_t tot_cnt;
-        khash_t(64) *h = kh_init(64);
-        kh_resize(64, h, 0);
-        
-        tot_cnt = 0;
-        while (kseq_read(ks) >= 0) { // each kseq_read() call reads one query sequence
-            m_array mv = m_cnts.a[i];
-            kv_init(minis);
-            mm_sketch(km, ks->seq.s, ks->seq.l, iopt.w, iopt.k, i, a.h_flag, &minis); // YF memo: redundant...
-            //printf("[DEBUG] assert %d: %zu\n", mv.n, minis.n);
-            assert(mv.n == minis.n);
-            for(j=0; j<mv.n; j++){
-                /*
-                 printf("[DEBUG] %"PRIu64"(i=%d, reverse=%d): %d\n", minis.a[j].x>>8,
-                 (uint32_t) minis.a[j].y >>1, (uint32_t) minis.a[j].y&1,
-                 mv.a[j]);
-                 */
-                itr = kh_put(64, h, minis.a[j].x>>8, &h_ret);
-                if(h_ret == 0){
-                    uint64_t t;
-                    t = kh_val(h, itr);
-                    assert( t == (uint64_t) mv.a[j]);
-                    //kh_val(h, itr) = kh_val(h, itr) + (uint64_t) mv.a[j];
-                    //printf("[DEBUG] hash value: %"PRIu64"\n", kh_val(h, itr));
-                } else if (h_ret < 0){
-                    fprintf(stderr, "Error: operation failed.\n"); // some error happend.
-                } else if (h_ret == 1) {
-                    kh_val(h, itr) = (uint64_t) mv.a[j];
-                    //printf("[DEBUG] hash value: %"PRIu64"\n", kh_val(h, itr));
-                } else {
-                    // return code == 2 should not happen.
-                    fprintf(stderr, "Error: unexpected deleion happend.\n"); // some error happend.
-                }
+    // vars to get minimizers. used for paper revision
+    mm128_v minis;
+    int h_ret;
+    void *km = km_init();
+    khiter_t itr;
+    uint64_t *b; int32_t n_b;;
+    khash_t(64) *h = kh_init(64);
+    kh_resize(64, h, 0);
+    
+    while (kseq_read(ks) >= 0) { // each kseq_read() call reads one query sequence
+        m_array mv = m_cnts.a[i];
+        kv_init(minis);
+        mm_sketch(km, ks->seq.s, ks->seq.l, iopt.w, iopt.k, i, a.h_flag, &minis); // YF memo: redundant...
+        //printf("[DEBUG] assert %d: %zu\n", mv.n, minis.n);
+        assert(mv.n == minis.n);
+        for(j=0; j<mv.n; j++){
+            /*
+             printf("[DEBUG] %"PRIu64"(i=%d, reverse=%d): %d\n", minis.a[j].x>>8,
+             (uint32_t) minis.a[j].y >>1, (uint32_t) minis.a[j].y&1,
+             mv.a[j]);
+             */
+            itr = kh_put(64, h, minis.a[j].x>>8, &h_ret);
+            if(h_ret == 0){
+                uint64_t t;
+                t = kh_val(h, itr);
+                assert( t == (uint64_t) mv.a[j]);
+                //kh_val(h, itr) = kh_val(h, itr) + (uint64_t) mv.a[j];
+                //printf("[DEBUG] hash value: %"PRIu64"\n", kh_val(h, itr));
+            } else if (h_ret < 0){
+                fprintf(stderr, "Error: operation failed.\n"); // some error happend.
+            } else if (h_ret == 1) {
+                kh_val(h, itr) = (uint64_t) mv.a[j];
+                //printf("[DEBUG] hash value: %"PRIu64"\n", kh_val(h, itr));
+            } else {
+                // return code == 2 should not happen.
+                fprintf(stderr, "Error: unexpected deleion happend.\n"); // some error happend.
             }
-            // end of loop processing
-            kfree(km, minis.a);
-            i++;
         }
-        
-        n_b = 0;
-        b = (uint64_t*)kmalloc(km, kh_size(h)*sizeof(uint64_t));
-        for (itr = kh_begin(h); itr != kh_end(h); ++itr)
-            if (kh_exist(h, itr))
-                b[n_b++] = kh_value(h, itr);
-        
-        // for showing
-        radix_sort_64(b, b + n_b);
-        for (j = 0; j < n_b>>1; ++j) { // reverse
-            uint64_t t = b[j];
-            b[j] = b[n_b - j - 1], b[n_b - j - 1] = t;
-        }
-        
-        for(j = 0; j < n_b; ++j) printf("minimizer %d cnt: %"PRIu64"\n", j, b[j]);
-        
-        kfree(km, b);
-        km_destroy(km);
-        kseq_destroy(ks);
-        i = 0;
-        f = gzopen(a.args[1], "r");
-        assert(f);
-        ks = kseq_init(f);
+        // end of loop processing
+        kfree(km, minis.a);
+        i++;
     }
     
+    n_b = 0;
+    b = (uint64_t*)kmalloc(km, kh_size(h)*sizeof(uint64_t));
+    for (itr = kh_begin(h); itr != kh_end(h); ++itr)
+        if (kh_exist(h, itr))
+            b[n_b++] = kh_value(h, itr);
+    
+    // for showing
+    radix_sort_64(b, b + n_b);
+    for (j = 0; j < n_b>>1; ++j) { // reverse
+        uint64_t t = b[j];
+        b[j] = b[n_b - j - 1], b[n_b - j - 1] = t;
+    }
+    
+
+    for(j = 0; j < n_b; ++j) printf("minimizer %d cnt: %"PRIu64"\n", j, b[j]);
+        
+    kfree(km, b);
+    km_destroy(km);
     kseq_destroy(ks);
     mm_idx_reader_close(r); // close the index reader
     gzclose(f);
@@ -414,7 +391,7 @@ int lq_collect_occ_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const 
     collect_minimizers(b->km, opt, mi, n_segs, qlens, seqs, &mv);
     // put occurences to m_cnts as db is split by the size specified -I option.
     collect_occurences(mi, &mv, &mc);
-    fprintf(stderr, "debug (count check): seqnum=%d\n", n_segs);
+    //fprintf(stderr, "debug (count check): seqnum=%d\n", n_segs);
 
     kfree(b->km, mv.a);
     
@@ -535,7 +512,7 @@ static void *worker_pipeline(void *shared, int step, void *in)
             }
         }
         free(s->n_reg); free(s->seq); // seg_off and n_seg were allocated with reg; no memory leak here
-        fprintf(stderr, "[M::%s::%.3f*%.2f] mapped %d sequences. (Peak RSS: %.3f GB) \n", __func__, realtime() - mm_realtime0, cputime() / (realtime() - mm_realtime0), s->n_seq, peakrss() / 1024.0 / 1024.0 / 1024.0);
+        fprintf(stderr, "[M::%s::%.3f*%.2f] processed %d sequences. (Peak RSS: %.3f GB) \n", __func__, realtime() - mm_realtime0, cputime() / (realtime() - mm_realtime0), s->n_seq, peakrss() / 1024.0 / 1024.0 / 1024.0);
         free(s);
     }
     return 0;
@@ -574,3 +551,4 @@ int lq_collect_occ(const mm_idx_t *idx, int n_segs, const char **fn, const mm_ma
     free(pl.fp);
     return 0;
 }
+
