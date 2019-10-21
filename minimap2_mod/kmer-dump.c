@@ -133,7 +133,7 @@ int main(int argc, char *argv[])
     int offset_q, i, j;
     kseq_t *ks;
     mm128_v mv;
-    lq_minimizer_cnt_v m_cnts;
+    lq_cnt_v m_cnts;
     gzFile f;
 
     struct arguments a;
@@ -370,7 +370,7 @@ static void collect_occurences(const mm_idx_t *mi, mm128_v *mv, m_array *m_cnts)
     }
 }
 
-int lq_collect_occ_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **seqs, int *n_regs, mm_tbuf_t *b, const mm_mapopt_t *opt, const char *qname, lq_minimizer_cnt_v *m_cnts, int off_q)
+int lq_collect_occ_frag(const mm_idx_t *mi, int n_segs, const int *qlens, const char **seqs, int *n_regs, mm_tbuf_t *b, const mm_mapopt_t *opt, const char *qname, lq_cnt_v *m_cnts, int off_q)
 {
     int i, qlen_sum;
     uint32_t hash;
@@ -416,7 +416,7 @@ typedef struct {
     const mm_idx_t *mi;
     kstring_t str;
     int *off_q; // YF memo:
-    lq_minimizer_cnt_v *m_cnts; // YF memo:
+    lq_cnt_v *m_cnts; // YF memo:
 } pipeline_t;
 
 typedef struct {
@@ -519,7 +519,7 @@ static void *worker_pipeline(void *shared, int step, void *in)
 }
 
 int lq_collect_occ(const mm_idx_t *idx, int n_segs, const char **fn, const mm_mapopt_t *opt,
-                   int n_threads, lq_minimizer_cnt_v *m_cnts, int *off)
+                   int n_threads, lq_cnt_v *m_cnts, int *off)
 {
     int i, j, pl_threads;
     pipeline_t pl;
