@@ -33,6 +33,11 @@ typedef struct {
     int max_overhang, min_ovlp;
     double min_ratio;
 } lq_fltopt_t;
+    
+typedef struct {
+    uint32_t n;
+    uint16_t *a;
+} m_array;
 
 typedef kvec_t(lq_tchain) lq_tchain_v;
 typedef kvec_t(uint32_t) lq_subcoords_v;
