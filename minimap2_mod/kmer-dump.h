@@ -14,6 +14,6 @@
 #include "minimap2-coverage.h"
 
 int lq_collect_occ(const mm_idx_t *idx, int n_segs, const char **fn, const mm_mapopt_t *opt,
-                   int n_threads, lq_minimizer_cnt_v *m_cnts, int *off);
+                   int n_threads, lq_cnt_v *m_cnts, int *off);
 
 #endif /* kmer_dump_h */
