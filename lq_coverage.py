@@ -443,6 +443,7 @@ class LqCoverage:
         plt.title("Read coverage over different length reads")
         plt.xticks(np.arange(xmax+1), [int(i) for i in np.arange(xmax+1)*interval])
         plt.ylim(0, self.mean_main + 20*np.sqrt(self.cov_main))
+        plt.ylabel("per-read coverage")
         plt.suptitle("")
 
         if not self.min_lambda and not self.max_lambda and self.mix_model is None:

@@ -108,6 +108,14 @@ def open_fast5(path):
         return None
     return f
 
+def list_toplevel(f):
+    return list(f.keys())
+
+def get_fastq_from_multi_fast5(f, rn):
+    # fastq binary string is stored under /Analyses/Basecall_1D_000/BaseCalled_template/Fastq
+    # empty tuple index means 'scalar' access in a 'dataset' for h5py
+    return f[rn]['Analyses']['Basecall_1D_000']['BaseCalled_template']['Fastq'][()].decode('ascii')
+
 def get_channel_id(f):
     return int(f['/UniqueGlobalKey']['channel_id'].attrs['channel_number'])
 

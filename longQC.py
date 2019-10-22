@@ -219,6 +219,9 @@ def command_sample(args):
     if file_format_code == 0:
         fastx_path = os.path.join(args.out, "analysis", "pbbam_converted_seq_file" + suffix + ".fastq")
         logger.info('Temporary work file was made at %s' % fastx_path)
+    elif file_format_code == 4: #fast5
+        fastx_path = os.path.join(args.out, "analysis", "fast5_converted_seq_file" + suffix + ".fastq")
+        logger.info('Temporary work file was made at %s' % fastx_path)
     elif file_format_code == -1 or file_format_code == 1:
         logger.error('Input file is unsupported file format: %s' % args.input)
         sys.exit()
@@ -277,8 +280,8 @@ def command_sample(args):
     chunk_n = 0
     for (reads, n_seqs, n_bases) in open_seq_chunk(args.input, file_format_code, chunk_size=args.mem*1024**3, is_upper=True):
         ### iterate over chunks
-        ### 1. bam to fastq conversion
-        if file_format_code == 0:
+        ### 1. bam/fast5 to fastq conversion
+        if file_format_code == 0 or file_format_code == 4:
             write_fastq(fastx_path, reads, is_chunk=True)
 
         ### 2. low-complexity region calc -> another process
@@ -795,11 +798,11 @@ def command_sample(args):
     #    os.makedirs(os.path.join(args.out, "css"), exist_ok=True)
     #if not os.path.isdir(os.path.join(args.out, "vendor")):
     #    os.makedirs(os.path.join(args.out, "vendor"), exist_ok=True)
-    if not os.path.isdir(os.path.join(args.out, "figs")):
-        os.makedirs(os.path.join(args.out, "figs"), exist_ok=True)
+    #if not os.path.isdir(os.path.join(args.out, "figs")):
+    #    os.makedirs(os.path.join(args.out, "figs"), exist_ok=True)
     #copytree(os.path.join(template_dir, 'css'), os.path.join(args.out, "css"))
     #copytree(os.path.join(template_dir, 'vendor'), os.path.join(args.out, "vendor"))
-    copytree(os.path.join(template_dir, 'figs'), os.path.join(args.out, "figs"))
+    #copytree(os.path.join(template_dir, 'figs'), os.path.join(args.out, "figs"))
     logger.info("Generated a summary html.")
 
     logger.info("Finished all processes.")

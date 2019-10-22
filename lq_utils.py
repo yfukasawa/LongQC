@@ -1,5 +1,6 @@
 import sys, os, pysam, shutil
 import base64
+import lq_nanopore
 import numpy  as np
 
 from logging import getLogger
@@ -54,6 +55,8 @@ def open_seq_chunk(fn, file_code, is_upper=False, chunk_size=500*1024**2): # def
     #file_code = guess_format(fn)
     if file_code == 0:
         yield from parse_bam_chunk(fn, chunk_size, is_sequel=True, is_upper=is_upper)
+    elif file_code == 4:
+        yield from parse_fast5_chunk(fn, chunk_size, is_upper=is_upper)
     elif file_code == 1:
         logger.error("SAM is not supported.")
         return -1
@@ -81,8 +84,23 @@ def open_seq(fn):
         logger.error("Sorry. the input file format is unknown and not supported.")
         return -1
 
-# 0->bam, 1->sam, 2->fastq, 3->fasta, -1->error
+# 0->bam, 1->sam, 2->fastq, 3->fasta, 4->fast5 (multi), -1->error
 def guess_format(fn):
+
+    # assume fast5 is given in a dir. 
+    if os.path.isdir(fn):
+        logger.info("not a file but a direcory %s is given. looking for fast5 files.." % fn)
+        for f in os.listdir(fn):
+            if f.endswith(".fast5"):
+                f5 = lq_nanopore.open_fast5(os.path.join(fn, f))
+                if '/UniqueGlobalKey' in f5:
+                    logger.error("single read fast5 is included? it's not supported for sampleqc.")
+                    return -1
+                return 4
+
+        logger.error("no fast5 is found.")
+        return -1
+
     try:
         fh = open(fn, 'rb')
     except:
@@ -166,6 +184,34 @@ def parse_bam(fn, *, is_sequel=True):
         reads.append( [e.query_name, e.query_sequence, qual_33] )
 
     return (reads, n_seqs, n_bases)
+
+
+def parse_fast5_chunk(dn, cs, is_upper=False):
+    reads   = []
+    n_seqs  = 0
+    n_bases = 0
+    size = 0
+    f5s = [os.path.join(dn, f) for f in os.listdir(dn) if f.endswith(".fast5")]
+    for f5 in f5s:
+        f5h = lq_nanopore.open_fast5(f5)
+        top = lq_nanopore.list_toplevel(f5h)
+        for k in top:
+            if not k.startswith('read_'):
+                continue
+            fastq = lq_nanopore.get_fastq_from_multi_fast5(f5h, k).splitlines()
+            name = fastq[0].split(" ")[0]
+            if is_upper:
+                reads.append( [name, fastq[1].upper(), fastq[3]] )
+            else:
+                reads.append( [name, fastq[1], fastq[3]] )
+            size += sys.getsizeof(name) + sys.getsizeof(fastq[1]) + sys.getsizeof(fastq[3])
+            n_bases += len(fastq[1])
+            n_seqs += 1
+            if size >= cs:
+                yield (reads, n_seqs, n_bases)
+                size  = 0
+                reads = []
+    yield (reads, n_seqs, n_bases)
 
 def parse_bam_chunk(fn, cs, is_sequel=True, is_upper=False):
     reads   = []
@@ -444,8 +490,12 @@ if __name__ == "__main__":
     #code = guess_format("/home/fukasay/analyses/ont/minimap2_mapping/Hai1D_albacore213_1dsq_map.sam")
     #print(code)
 
-    fn = "/home/fukasay/rawdata/pb/rs2_ecoli_pacbio_official/ecoli_pacbio_p6c4.subreads.bam"
-    (c, reads, n_seqs, n_bases) = open_seq(fn)
-    print(len(reads), n_seqs, n_bases)
+    #fn = "/home/fukasay/rawdata/pb/rs2_ecoli_pacbio_official/ecoli_pacbio_p6c4.subreads.bam"
+    fn = "/home/fukasay/python_codes/longQC/test_data"
+    if guess_format(fn) == 4:
+        for (reads, n_seqs, n_bases) in parse_fast5_chunk(fn, 0.5*1024**3):
+            print(n_seqs, n_bases)
+    #(c, reads, n_seqs, n_bases) = open_seq(fn)
+    #print(len(reads), n_seqs, n_bases)
     #for (reads, n_seqs, n_bases) in open_seq_chunk(fn, guess_format(fn), 0.25*1024**3):
     #    print(len(reads), n_seqs, n_bases)
