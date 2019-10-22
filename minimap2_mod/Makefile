@@ -3,7 +3,7 @@ CPPFLAGS=	-DHAVE_KALLOC
 INCLUDES=
 OBJS=		kthread.o kalloc.o misc.o bseq.o sketch.o sdust.o index.o chain.o align.o hit.o map.o format.o pe.o esterr.o ksw2_ll_sse.o chain_lq.o lqutils.o
 PROG=		minimap2
-PROG_EXTRA=	sdust minimap2-coverage
+PROG_EXTRA=	sdust minimap2-coverage kmer-dump
 LIBS=		-lm -lz -lpthread
 
 ifeq ($(arm_neon),)
@@ -33,6 +33,9 @@ minimap2:main.o getopt.o libminimap2.a
 
 minimap2-coverage:minimap2-coverage.o libminimap2.a
 		$(CC) $(CFLAGS) $< -o $@ -L. -lminimap2 $(LIBS)
+		
+kmer-dump:kmer-dump.o libminimap2.a
+                $(CC) $(CFLAGS) $< -o $@ -L. -lminimap2 $(LIBS)
 
 libminimap2.a:$(OBJS)
 		$(AR) -csru $@ $(OBJS)

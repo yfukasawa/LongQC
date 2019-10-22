@@ -33,10 +33,16 @@ typedef struct {
     int max_overhang, min_ovlp;
     double min_ratio;
 } lq_fltopt_t;
+    
+typedef struct {
+    uint32_t n;
+    uint16_t *a;
+} m_array;
 
 typedef kvec_t(lq_tchain) lq_tchain_v;
 typedef kvec_t(uint32_t) lq_subcoords_v;
 typedef kvec_t(uint32_t) lq_minimizer_cnt_v;
+typedef kvec_t(m_array) lq_cnt_v;
 typedef kvec_t(lq_subcoords_t) lq_region_v;
     
 int lq_cnt_exact_match(int min_sc_m_g, int qlen, int n_u, uint64_t *u, mm128_t *a, int n_mini_pos, uint64_t *mini_pos, lq_minimizer_cnt_v *m_cnts);
