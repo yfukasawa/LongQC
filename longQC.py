@@ -95,7 +95,7 @@ def command_sample(args):
         suffix = ""
 
     ncpu = int(args.ncpu)
-    path_minimap2  = os.path.join(os.path.dirname(os.path.abspath(__file__)), "minimap2_mod")
+    path_minimap2  = os.path.join(os.path.dirname(os.path.abspath(__file__)), "minimap2-coverage")
     pb_control     = None
     merged_control = None
     cov_path    = os.path.join(args.out, "analysis", "minimap2", "coverage_out" + suffix + ".txt")
@@ -208,10 +208,10 @@ def command_sample(args):
             minimap2_med_score_threshold = 160
             if args.short:
                 minimap2_med_score_threshold_short = 140
-        if args.acc:
-            minimap2_db_params = "-k 12 -w 5 -I %s" % args.inds 
-        else:
+        if args.fast:
             minimap2_db_params = "-k 15 -w 5 -I %s" % args.inds
+        else:
+            minimap2_db_params = "-k 12 -w 5 -I %s" % args.inds 
 
         logger.info("Preset \"%s\" was applied. Options --pb(--ont) is overwritten." % (p,))
 
@@ -880,9 +880,12 @@ if __name__ == "__main__":
     parser_sample.add_argument('--adapter_3', help='adapter sequence for 3\'.', dest = 'adp3', default = None)
 
 
-    parser_sample.add_argument('-a', '--accurate',\
-                               help='this turns on the more sensitive setting. More accurate but slower.', action = 'store_true',\
-                               dest = 'acc', default = None)
+    #parser_sample.add_argument('-a', '--accurate',\
+    #                           help='this turns on the more sensitive setting. More accurate but slower.', action = 'store_true',\
+    #                           dest = 'acc', default = None)
+    parser_sample.add_argument('-f', '--fast',\
+                               help='this turns off sensitive setting. Faster but less accurate.', action = 'store_true',\
+                               dest = 'fast', default = None)
     parser_sample.add_argument('-p', '--ncpu', help='the number of cpus for LongQC analysis [Default is 4]', type=int, dest = 'ncpu', default = 1)
     parser_sample.add_argument('-d', '--db',\
                                help='make minimap2 db in parallel to other tasks.',\

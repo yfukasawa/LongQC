@@ -2,6 +2,7 @@ import sys, os, pysam, shutil
 import base64
 import lq_nanopore
 import numpy  as np
+import gzip
 
 from logging import getLogger
 logger = getLogger(__name__)
@@ -84,7 +85,7 @@ def open_seq(fn):
         logger.error("Sorry. the input file format is unknown and not supported.")
         return -1
 
-# 0->bam, 1->sam, 2->fastq, 3->fasta, 4->fast5 (multi), -1->error
+# 0->bam, 1->sam, 2->fastq(.gz), 3->fasta(.gz), 4->fast5 (multi), -1->error
 def guess_format(fn):
 
     # assume fast5 is given in a dir. 
@@ -113,19 +114,39 @@ def guess_format(fn):
 
     # pybam and/or biopython way
     if majic == 'BAM\1':
-        return 0
         fh.close()
-    elif majic == b'\x1f\x8b\x08\x04':
-        # compressed bam
+        logger.debug("%s is an uncompressed BAM." % fn)
         return 0
+    elif b'\x1f\x8b' in majic:
+        # YF memo: 1f 8b 08 04 code can exist in fq.gz either.
+        # changed the logic.
+        fh.close()
+        with gzip.open(fn, 'rt') as f:
+            l = f.readline()
+            if "BAM" in l[0:3]:
+                logger.debug("%s is a compressed BAM." % fn)
+                return 0
+            else:
+                return __guess_sam_fastx(fn, isgzip=True)
+    else:
         fh.close()
 
-    fh.close()
+    return __guess_sam_fastx(fn, isgzip=False)
 
-    try:
-        fh = open(fn, 'r')
-    except:
-        logger.error("cannot open %s" % fn)
+# guessing format is sam, fastq, fasta or something else.
+def __guess_sam_fastx(fn, isgzip=False):
+    if isgzip:
+        try:
+            fh = gzip.open(fn, 'rt')
+        except:
+            logger.error("cannot open a gzip file %s" % fn)
+            sys.exit(1)
+    else:
+        try:
+            fh = open(fn, 'r')
+        except:
+            logger.error("cannot open %s" % fn)
+            sys.exit(1)
 
     # assume sam, fastx
     at_line_cnt = 0
@@ -161,6 +182,7 @@ def guess_format(fn):
     # something else
     fh.close()
     return -1
+
 
 # this is basically for pbbam, where there is no QV, and no support from minimap2.
 # is_sequel option should be True, otherwise, this'll be very slow.
