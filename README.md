@@ -38,11 +38,6 @@ Modified version of minimap2 named minimap2-coverage is also required. If you ar
 	git clone https://github.com/yfukasawa/LongQC.git
 	cd LongQC/minimap2_mod && make extra
 
-Then, change the below variable in **longQC.py**.
-
-	path_minimap2 = /path/to/minimap2_mod/
-
-Or, put both **minimap2-coverage** and **sdust** to some dirs in PATH.
 
 #### For Mac users
 Argp has to be installed. Using homebrew seems to be easiest.
