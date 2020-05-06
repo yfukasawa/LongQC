@@ -47,12 +47,17 @@ Argp has to be installed. Using homebrew seems to be easiest.
 ## The Docker image
 See the docker file in this repository. All of dependency will be automatically resoleved. I tested the docker image of LongQC on both Linux and Mac.
 
-### 1. Build
-	docker build -t longqc --build-arg USER="foo" .
+### 1. Download Dockerfile
+Download Dockerfile in this repository to your local space. One example is below.
 
-The above command simply build a new container named LongQC. You can name username in the docker environment by passing to USER. The above example uses foo.
+        wget https://raw.githubusercontent.com/yfukasawa/LongQC/master/Dockerfile
 
-### 2. Run
+### 2. Build
+	docker build -t longqc .
+
+In the folder you saved Dockerfile above, run the above command to build a new container named longqC.
+
+### 3. Run
 	docker run -it --rm -v /path/to/shared_dir/:/data longqc
 Run the LongQC container built by the above command. The container uses `/data` as a default workspace, and the above command mounts `/data` to `shared_dir` in the host.
 
