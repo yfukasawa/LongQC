@@ -12,7 +12,6 @@ Long reads from third generation sequencers have high error rate (~15%) and quit
 
 LongQC was developed to overcome such situations, and it gives you a first insight of your data within a short period of time.
 
-
 ## Getting started
 docker image is mainteined, and we recommended running LongQC on the docker. Having said that, if you want to setup manually, kidly follow below steps.
 
@@ -25,12 +24,20 @@ LongQC was written in python3 and has dependencies for popular python libraries:
 * scikit-learn
 * pandas
 * jinja2
+* h5py
 
-Anaconda should be easier choice. We recommend [anaconda3](https://www.anaconda.com/), then install below dependency using conda.
+Also, it depends on some bioinformatics packages.
 
-	a) conda install pysam
-	b) conda install edlib
-	   conda install python-edlib
+* pysam
+* edlib (with its python wrapper, python-edlib)
+
+Anaconda should be an easier choice. We recommend [anaconda3](https://www.anaconda.com/), then install below dependency using conda.
+
+	a) conda install h5py
+	b) conda install -c bioconda pysam
+	c) conda install -c bioconda edlib
+	   conda install -c bioconda python-edlib
+
 ### 2. minimap2
 Modified version of minimap2 named minimap2-coverage is also required. If you are a Mac user, you have to prepare libc for argp.h.
 
@@ -55,7 +62,7 @@ Download Dockerfile in this repository to your local space. One example is below
 ### 2. Build
 	docker build -t longqc .
 
-In the folder you saved Dockerfile above, run the above command to build a new container named longqC.
+In the folder you saved Dockerfile above, run the docker command to build a new container named longqc.
 
 ### 3. Run
 	docker run -it --rm -v /path/to/shared_dir/:/data longqc
@@ -137,6 +144,15 @@ These are the plots for a high quality public data. The overall stats show that 
 
 ## The usage of platformqc
 SMRT Portal, SMRT Link and some third-party tools for ONT can provide similar plots and stats. This subcommands generates equivalent stuff for users who do not have access to such servers/tools. 
+
+## Citation LongQC
+If you use LongQC in your project and cite the following publication, we'll be more than happy:
+
+```
+LongQC: A Quality Control Tool for Third Generation Sequencing Long Read Data.
+Yoshinori Fukasawa, Luca Ermini, Hai Wang, Karen Carty, Ming-Sin Cheung.
+G3: Genes, Genomes, Genetics, 10(4): 1193-1196, 2020
+```
 
 ## Copyright and license
 [minimap2](https://github.com/lh3/minimap2) was originally developed by Heng Li and licensed under MIT. [mix'EM](https://github.com/sseemayer/mixem) was developed by Stefan Seemayer and licensed under MIT. Yoshinori slightly modified their codes.
