@@ -8,7 +8,7 @@ LongQC is a tool for the data quality control of the PacBio and ONT long reads, 
 **Platform QC**: this extracts and provides very fundamental stats for a run such as length or productivity in PacBio and some plots for productivity check in ONT.
 
 ## Why new one?
-Long reads from third generation sequencers have high error rate (~15%) and quite different technological background from NGS (e.g. there is no equivalent to Illumina's cycle). In addition, base-level quality score is occasionaly [fluctuating](https://dazzlerblog.wordpress.com/2015/11/06/intrinsic-quality-values/), [too high even for noisy ones](https://github.com/amojarro/carrierseq) or completely unavailable in Sequel. Therefore, mapping back reads to references and overseeing error profile have been conducted for the QC purpose. However, this approach has dependency for the reference, which can be an evitable issue: reference is not always available. Besides, this is typical in production lab, finding an appropriate reference is not a trivial task. If one selects very close but distinct reference from public databases, statistics can be quite different (what you will see is the summation of evolutionary divergence and error).
+Long reads from third generation sequencers have high error rate (~15%) and quite different technological background from NGS (e.g. there is no equivalent to Illumina's cycle). In addition, base-level quality score is occasionaly [fluctuating](https://dazzlerblog.wordpress.com/2015/11/06/intrinsic-quality-values/), [too high even for noisy ones](https://github.com/amojarro/carrierseq) or completely unavailable in Sequel. Therefore, mapping back reads to references and overseeing error profile have been conducted for the QC purpose. However, this approach has dependency for the reference, which can be an inevitable issue: reference is not always available. Besides, this is typical in production lab, finding an appropriate reference is not a trivial task. If one selects very close but still wrong reference from public databases, statistics can be quite different (what you will see is the summation of evolutionary divergence and error).
 
 LongQC was developed to overcome such situations, and it gives you a first insight of your data within a short period of time.
 
@@ -145,7 +145,7 @@ These are the plots for a high quality public data. The overall stats show that 
 ## The usage of platformqc
 SMRT Portal, SMRT Link and some third-party tools for ONT can provide similar plots and stats. This subcommands generates equivalent stuff for users who do not have access to such servers/tools. 
 
-## Citation LongQC
+## Citing LongQC
 If you use LongQC in your project and cite the following publication, we'll be more than happy:
 
 ```
