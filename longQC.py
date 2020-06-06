@@ -3,7 +3,7 @@
 
    Project Name: longQC.py
    Start Date: 2017-10-10
-   Version: 0.1
+   Version: 1.1
 
    Usage:
       longQC.py [options]

@@ -283,7 +283,7 @@ class LqCoverage:
     def plot_coverage_dist(self, fp=None):
         if self.min_lambda and self.max_lambda:
             plt.figure(figsize=(12,5))
-            plt.subplot(1,2,1)
+            ax1 = plt.subplot(1,2,1)
             plt.grid(True)
             pois_min = st.poisson(self.min_lambda)
             pois_max = st.poisson(self.max_lambda)
@@ -369,17 +369,19 @@ class LqCoverage:
 
     def plot_unmapped_frac_terminal(self, fp=None, *, adp5_pos=None, adp3_pos=None, x_max=145):
         plt.figure(figsize=(12,5))
-        plt.subplot(1,2,1)
+        ax1 = plt.subplot(1,2,1)
         t5l, t3l, il = self.__region_analysis(3, 1)
         logger.info("Coordinates of coverage analysis were parsed.")
 
+        plt.axes(ax1)
         plt.hist(t5l, alpha=0.2, bins=np.arange(0, x_max, 5), color='green')
         plt.xlim(0,x_max)
         plt.xlabel('Distance from 5\' terminal')
         plt.ylabel('Frequency')
         ymin5, ymax5 = plt.gca().get_ylim()
 
-        plt.subplot(1,2,2)
+        ax2 = plt.subplot(1,2,2)
+        plt.axes(ax2)
         plt.hist(t3l, alpha=0.2, bins=np.arange(0, x_max, 5), color='orange')
         plt.xlim(x_max, 0)
         plt.xlabel('Distance from 3\' terminal')
@@ -387,25 +389,21 @@ class LqCoverage:
         ymin3, ymax3 = plt.gca().get_ylim()
 
         if ymax5 > ymax3:
-            ax = plt.subplot(122)
-            ax.set_ylim(0, ymax5)
+            ax2.set_ylim(0, ymax5)
             ymax = ymax5
         else:
-            ax = plt.subplot(121)
-            ax.set_ylim(0, ymax3)
+            ax1.set_ylim(0, ymax3)
             ymax = ymax3
 
         if adp5_pos:
             #adp5_pos -> 45 for pb, 61 for 1d, and 120 for 1d2.
-            ax = plt.subplot(121)
-            ax.axvline(x=adp5_pos, linestyle='dashed', linewidth=2, color='red', alpha=0.8) # pacbio
-            ax.text(adp5_pos, ymax*0.85, r'Length of the adapter')
+            ax1.axvline(x=adp5_pos, linestyle='dashed', linewidth=2, color='red', alpha=0.8) # pacbio
+            ax1.text(adp5_pos, ymax*0.85, r'Length of the adapter')
 
         if adp3_pos:
             #adp3_pos -> 45 for pb, 22 for 1d, and 86 for 1d2.
-            ax = plt.subplot(122)
-            ax.axvline(x=adp3_pos, linestyle='dashed', linewidth=2, color='red', alpha=0.8) # pacbio
-            ax.text(adp3_pos, ymax*0.85, r'Length of the adapter', horizontalalignment='right')
+            ax2.axvline(x=adp3_pos, linestyle='dashed', linewidth=2, color='red', alpha=0.8) # pacbio
+            ax2.text(adp3_pos, ymax*0.85, r'Length of the adapter', horizontalalignment='right')
 
         if fp:
             plt.savefig(fp, bbox_inches="tight")
