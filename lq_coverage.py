@@ -3,7 +3,7 @@ import numpy             as np
 import pandas            as pd
 import scipy.stats       as st
 import matplotlib as mpl
-#mpl.use('Agg')
+mpl.use('Agg')
 import matplotlib.pyplot as plt
 
 from sklearn  import mixture
@@ -91,7 +91,7 @@ class LqCoverage:
         self.unmapped_frac_trimmed   = -1.0
         self.unmapped_frac_untrimmed = -1.0
         self.unmapped_frac_med       = -1.0
-        self.unmapped_bad_frac       = -1.0
+        #self.unmapped_bad_frac       = -1.0
         self.high_div_frac           = -1.0
         self.model = None
         self.mean_main = None
@@ -166,10 +166,10 @@ class LqCoverage:
             logger.warning("Unmapped medial fraction has no value. Do estimation first.")
         return self.unmapped_frac_med
 
-    def get_unmapped_bad_frac(self):
-        if self.unmapped_bad_frac == -1.0:
-            logger.warning("Unmapped bad read fraction has no value. Do estimation first.")
-        return self.unmapped_bad_frac
+    #def get_unmapped_bad_frac(self):
+    #    if self.unmapped_bad_frac == -1.0:
+    #        logger.warning("Unmapped bad read fraction has no value. Do estimation first.")
+    #    return self.unmapped_bad_frac
 
     def is_low_coverage(self):
         if self.low_coverage != None:
@@ -208,8 +208,8 @@ class LqCoverage:
                                        / self.df.shape[0]
         self.unmapped_frac_med       = self.df[LqCoverage.MED_READ_COV_CORS].values[np.where(self.df[LqCoverage.MED_READ_COV_CORS] == '0')].shape[0] \
                                        / self.df.shape[0]
-        self.unmapped_bad_frac       = self.df[LqCoverage.GOOD_READ_COV_CORS].values[np.where(self.df[LqCoverage.GOOD_READ_COV_CORS] == '0')].shape[0] \
-                                       / self.df.shape[0]
+        #self.unmapped_bad_frac       = self.df[LqCoverage.GOOD_READ_COV_CORS].values[np.where(self.df[LqCoverage.GOOD_READ_COV_CORS] == '0')].shape[0] \
+        #                               / self.df.shape[0]
         self.high_div_frac           = self.df[LqCoverage.DIV_COLUMN].values[\
                                        np.where((self.df[LqCoverage.DIV_COLUMN] >= LqCoverage.DIV_SCORE_THRESHOLD) & \
                                                 (self.df[LqCoverage.T1_COVERAGE_COLUMN] >= LqCoverage.COV_THRESHOLD_FOR_DIV_SC) & \
@@ -229,7 +229,7 @@ class LqCoverage:
                                            self.mean_main + 10 * np.sqrt(self.cov_main) + self.mean_main / 10,
                                            self.mean_main / 10),
                             color='green',
-                            normed=True)
+                            density=True)
         plt.close()
 
         self.low_coverage = self.__looks_lowcoverage(raw_hist)
@@ -251,10 +251,15 @@ class LqCoverage:
             self.mu_logn_main = self.mix_model[1][1]
             self.sigma_logn_main = self.mix_model[2][1]
 
-            #self.min_lambda = -1 * math.log(self.unmapped_frac_med - LqCoverage.UNMAPPED_FRACTION_PARAM_MIN)
-            #self.max_lambda = -1 * math.log(self.unmapped_frac_med - LqCoverage.UNMAPPED_FRACTION_PARAM_MAX)
-            #range_str = str(self.min_lambda) + "-" + str(self.max_lambda)
-            #logger.warning("If and only if the data is healthy, very rough estimated coverage range is %s." % range_str)
+	# edgy case fix.
+        if self.low_coverage and self.unmapped_frac_med >= LqCoverage.UNMAPPED_FRACTION_THRESHOLD and not self.isTranscript:
+            logger.warning("The fraction of zero coverage read is too high %.3f." % self.unmapped_frac_med)
+            logger.warning(self.unmapped_frac_med)
+
+            self.__est_coverage_dist_lognorm_norm()
+            self.mode_logn_main = np.exp(self.mix_model[1][1] - self.mix_model[2][1]**2)
+            self.mu_logn_main = self.mix_model[1][1]
+            self.sigma_logn_main = self.mix_model[2][1]
 
         # RNA and long tail case
         if self.isTranscript:
@@ -296,7 +301,7 @@ class LqCoverage:
                                 self.mean_main + 10 * np.sqrt(self.cov_main) + self.mean_main / 10,
                                 self.mean_main / 10),
                  color='green',
-                 normed=True)
+                 density=True)
             plt.legend(bbox_to_anchor=(1,1), loc='upper right', borderaxespad=1)
             plt.subplot(1,2,2)
             plt.grid(True)
@@ -330,7 +335,7 @@ class LqCoverage:
                                 self.mean_main + 10 * np.sqrt(self.cov_main) + self.mean_main / 10,
                                 self.mean_main / 10),
                  color='green',
-                 normed=True)
+                 density=True)
 
         plt.xlabel('Per read coverage')
         plt.ylabel('Probability density')
@@ -459,7 +464,7 @@ class LqCoverage:
 
         #plt.savefig('Box_plot_quality.png')
         if fp:
-            plt.savefig(fp, bbox_inches="tight")
+            plt.savefig(fp, bbox_inches="tight", transparent=True)
         else:
             plt.show()
         plt.close()
@@ -613,16 +618,22 @@ class LqCoverage:
 # test
 if __name__ == "__main__":
 
-    lc = LqCoverage(sys.argv[1], isTranscript=False)
-    lc.plot_coverage_dist()
+    inf  = sys.argv[1]
+    outf = sys.argv[2]
+    lc = LqCoverage(inf, isTranscript=False)
+    #lc.plot_coverage_dist()
     if lc.mode_logn_main:
         print("Mode of LogN mix: %.3f" % lc.mode_logn_main)
         print("Mean of GMM: %.3f" % lc.mean_main)
     else:
         print("Mean of GMM: %.3f" % lc.mean_main)
-    lc.plot_unmapped_frac_terminal(adp5_pos=61, adp3_pos=30)
-    lc.plot_qscore_dist()
-    lc.plot_length_vs_coverage()
+    #lc.plot_unmapped_frac_terminal(adp5_pos=61, adp3_pos=30)
+    #lc.plot_qscore_dist()
+    plt.rcParams['figure.figsize'] = (7, 7)
+    plt.rcParams['pdf.fonttype'] = 42
+    plt.rcParams['ps.fonttype'] = 42
+    #lc.plot_length_vs_coverage(outf)
+    #lc.plot_unmapped_frac_terminal(outf)
     print("%% non-sense reads: %.3f" % lc.get_unmapped_med_frac())
     print("%% control reads: %.3f" % lc.get_control_frac())
 

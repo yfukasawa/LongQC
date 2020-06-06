@@ -1,5 +1,6 @@
 import random
 import array
+import sys
 import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot  as plt
@@ -51,12 +52,12 @@ class LqGC:
 
         logger.info("Mean GC composition: %.3f" % float(self.r_gc_tot/self.r_tot) )
         rtn_list = [np.mean(self.r_frac), np.std(self.r_frac)]
-        plt.hist(self.r_frac, alpha=0.3, bins=np.arange(min(self.r_frac), max(self.r_frac) + b_width, b_width), color='blue', normed=True)
+        plt.hist(self.r_frac, alpha=0.3, bins=np.arange(min(self.r_frac), max(self.r_frac) + b_width, b_width), color='blue', density=True)
         if len(self.r_frac) > 1:
             dens_read = gaussian_kde(self.r_frac)
         logger.info("Kernel density estimation done for read GC composition")
 
-        plt.hist(self.c_frac, alpha=0.3, bins=np.arange(min(self.c_frac), max(self.c_frac) + b_width, b_width), color='red', normed=True)
+        plt.hist(self.c_frac, alpha=0.3, bins=np.arange(min(self.c_frac), max(self.c_frac) + b_width, b_width), color='red', density=True)
         logger.debug("Length of chunk array: %d" % len(self.c_frac))
         dens_chunk = gaussian_kde(self.c_frac)
         logger.info("Kernel density estimation done for chunked read GC composition")
@@ -72,7 +73,7 @@ class LqGC:
 
         plt.legend(bbox_to_anchor=(1,1), loc='upper right', borderaxespad=1)
         if fp:
-            plt.savefig(fp, bbox_inches="tight")
+            plt.savefig(fp, bbox_inches="tight", transparent=True)
         else:
             plt.show()
         plt.close()
@@ -206,13 +207,8 @@ class LqGC:
 
 # test
 if __name__ == "__main__":
-    fn = "/path/to/seq/"
-
-    # test
-    #file_code, reads, n_seqs, n_bases = open_seq(fn)
-    #print('reads were loaded.\n')
-    #lg = LqGC()
-    #lg.plot_unmasked_gc_frac_old(reads, fp="./gc_frac.png")
+    fn   = sys.argv[1]
+    outf = sys.argv[2]
 
     # test
     lg = LqGC(chunk_size=150)
@@ -222,5 +218,8 @@ if __name__ == "__main__":
         print("Computation of the GC fraction started for a chunk %d" % chunk_n)
         lg.calc_read_and_chunk_gc_frac(reads)
         chunk_n += 1
-    print(lg.plot_unmasked_gc_frac(fp="./gc_frac_chunk.png"))
+    plt.rcParams['figure.figsize'] = (7, 7)
+    plt.rcParams['pdf.fonttype'] = 42
+    plt.rcParams['ps.fonttype'] = 42
+    print(lg.plot_unmasked_gc_frac(fp=outf))
 

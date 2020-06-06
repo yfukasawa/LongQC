@@ -343,7 +343,7 @@ def run_platformqc(data_path, output_path, *, suffix=None, b_width = 1000):
     est_dist = gamma(a, 0, b)
     plt.plot(x, est_dist.pdf(x), c=rgb(214,39,40) )
     plt.grid(True)
-    plt.hist(hr_lengths, histtype='step', bins=np.arange(min(hr_lengths), _max + b_width, b_width), color=rgb(214,39,40), alpha=0.7, normed=True)
+    plt.hist(hr_lengths, histtype='step', bins=np.arange(min(hr_lengths), _max + b_width, b_width), color=rgb(214,39,40), alpha=0.7, density=True)
     plt.xlabel('Read length')
     plt.ylabel('Probability density')
 
@@ -357,7 +357,7 @@ def run_platformqc(data_path, output_path, *, suffix=None, b_width = 1000):
     else:
         plt.axvline(x=_n50, linewidth=2, color=rgb(188, 189, 34), alpha=0.8)
 
-    plt.hist(tot_lengths, histtype='step', bins=np.arange(min(tot_lengths),max(tot_lengths) + b_width, b_width), color=rgb(31,119,180), alpha=0.7, normed=True) 
+    plt.hist(tot_lengths, histtype='step', bins=np.arange(min(tot_lengths),max(tot_lengths) + b_width, b_width), color=rgb(31,119,180), alpha=0.7, density=True) 
 
     ymin, ymax = plt.gca().get_ylim()
     xmin, xmax = plt.gca().get_xlim()

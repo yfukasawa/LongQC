@@ -35,7 +35,7 @@ minimap2-coverage:minimap2-coverage.o libminimap2.a
 		$(CC) $(CFLAGS) $< -o $@ -L. -lminimap2 $(LIBS)
 		
 kmer-dump:kmer-dump.o libminimap2.a
-                $(CC) $(CFLAGS) $< -o $@ -L. -lminimap2 $(LIBS)
+		$(CC) $(CFLAGS) $< -o $@ -L. -lminimap2 $(LIBS)
 
 libminimap2.a:$(OBJS)
 		$(AR) -csru $@ $(OBJS)

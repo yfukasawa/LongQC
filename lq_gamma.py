@@ -2,7 +2,10 @@ from scipy import special
 from scipy.stats import dgamma
 from scipy.stats import gamma
 from lq_utils    import rgb
+from lq_utils    import rgb, get_N50
+import sys
 import numpy as np
+import pandas as pd
 import matplotlib as mpl
 mpl.use('Agg')
 import matplotlib.pyplot as plt
@@ -53,7 +56,7 @@ def estimate_gamma_dist_scipy(vals):
 def plot_length_dist(fig_path, lengths, g_a, g_b, _max, _mean, _n50, isPb=False, b_width = 1000):
     x = np.linspace(0, gamma.ppf(0.99, g_a, 0, g_b))
     est_dist = gamma(g_a, 0, g_b)
-    plt.hist(lengths, histtype='step', bins=np.arange(min(lengths),_max + b_width, b_width), color=rgb(214,39,40), alpha=0.7, normed=True)
+    plt.hist(lengths, histtype='step', bins=np.arange(min(lengths),_max + b_width, b_width), color=rgb(214,39,40), alpha=0.7, density=True)
     plt.grid(True)
     plt.xlabel('Read length')
     plt.ylabel('Probability density')
@@ -77,27 +80,23 @@ def plot_length_dist(fig_path, lengths, g_a, g_b, _max, _mean, _n50, isPb=False,
 
     plt.axis('tight')
     plt.xlim(0, gamma.ppf(0.99, g_a, 0, g_b))
-    plt.savefig(fig_path, bbox_inches="tight")
+    plt.savefig(fig_path, bbox_inches="tight", transparent=True)
     #plt.show()
     plt.close()
 
 # test
 if __name__ == "__main__":
+    fn  = sys.argv[1] # assumes output table of sdust in minimap2-coverage.
+    out = sys.argv[2]
 
-    import matplotlib.pyplot as plt
-    from scipy.stats import gamma
+    df_mask = pd.read_table(fn, sep='\t', header=None)
+    lengths = df_mask[2].values
+    longest  = np.max(lengths)
+    mean_len = np.array(lengths).mean()
+    n50      = get_N50(lengths)
 
-    t_a = 0.987
-    t_b = 10
-    vals = np.random.gamma( t_a, t_b, 100000)
-    (a, b) = estimate_gamma_dist(vals)
-
-    print(a,b)
-
-    x = np.linspace(0, 10, 1000)
-    tru_dist = gamma(t_a, 0, 1/t_b)
-    est_dist = gamma(a, 0, 1/b)
-    plt.plot(x, tru_dist.pdf(x), c='blue' )
-    plt.plot(x, est_dist.pdf(x), c='red' )
-    plt.hist(vals, 10, normed=True)
-    plt.show()
+    (a, b) = estimate_gamma_dist_scipy(lengths)
+    plt.rcParams['figure.figsize'] = (7, 7)
+    plt.rcParams['pdf.fonttype'] = 42
+    plt.rcParams['ps.fonttype'] = 42
+    plot_length_dist(out, lengths, a, b, longest, mean_len, n50, False)
