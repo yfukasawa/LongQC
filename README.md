@@ -8,10 +8,9 @@ LongQC is a tool for the data quality control of the PacBio and ONT long reads, 
 **Platform QC**: this extracts and provides very fundamental stats for a run such as length or productivity in PacBio and some plots for productivity check in ONT.
 
 ## Why new one?
-Long reads from third generation sequencers have high error rate (~15%) and quite different technological background from NGS (e.g. there is no equivalent to Illumina's cycle). In addition, base-level quality score is occasionaly [fluctuating](https://dazzlerblog.wordpress.com/2015/11/06/intrinsic-quality-values/), [too high even for noisy ones](https://github.com/amojarro/carrierseq) or completely unavailable in Sequel. Therefore, mapping back reads to references and overseeing error profile have been conducted for the QC purpose. However, this approach has dependency for the reference, which can be an evitable issue: reference is not always available. Besides, this is typical in production lab, finding an appropriate reference is not a trivial task. If one selects very close but distinct reference from public databases, statistics can be quite different (what you will see is the summation of evolutionary divergence and error).
+Long reads from third generation sequencers have high error rate (~15%) and quite different technological background from NGS (e.g. there is no equivalent to Illumina's cycle). In addition, base-level quality score is occasionaly [fluctuating](https://dazzlerblog.wordpress.com/2015/11/06/intrinsic-quality-values/), [too high even for noisy ones](https://github.com/amojarro/carrierseq) or completely unavailable in Sequel. Therefore, mapping back reads to references and overseeing error profile have been conducted for the QC purpose. However, this approach has dependency for the reference, which can be an inevitable issue: reference is not always available. Besides, this is typical in production lab, finding an appropriate reference is not a trivial task. If one selects very close but still wrong reference from public databases, statistics can be quite different (what you will see is the summation of evolutionary divergence and error).
 
 LongQC was developed to overcome such situations, and it gives you a first insight of your data within a short period of time.
-
 
 ## Getting started
 docker image is mainteined, and we recommended running LongQC on the docker. Having said that, if you want to setup manually, kidly follow below steps.
@@ -25,12 +24,20 @@ LongQC was written in python3 and has dependencies for popular python libraries:
 * scikit-learn
 * pandas
 * jinja2
+* h5py
 
-Anaconda should be easier choice. We recommend [anaconda3](https://www.anaconda.com/), then install below dependency using conda.
+Also, it depends on some bioinformatics packages.
 
-	a) conda install pysam
-	b) conda install edlib
-	   conda install python-edlib
+* pysam
+* edlib (with its python wrapper, python-edlib)
+
+Anaconda should be an easier choice. We recommend [anaconda3](https://www.anaconda.com/), then install below dependency using conda.
+
+	a) conda install h5py
+	b) conda install -c bioconda pysam
+	c) conda install -c bioconda edlib
+	   conda install -c bioconda python-edlib
+
 ### 2. minimap2
 Modified version of minimap2 named minimap2-coverage is also required. If you are a Mac user, you have to prepare libc for argp.h.
 
@@ -38,11 +45,6 @@ Modified version of minimap2 named minimap2-coverage is also required. If you ar
 	git clone https://github.com/yfukasawa/LongQC.git
 	cd LongQC/minimap2_mod && make extra
 
-Then, change the below variable in **longQC.py**.
-
-	path_minimap2 = /path/to/minimap2_mod/
-
-Or, put both **minimap2-coverage** and **sdust** to some dirs in PATH.
 
 #### For Mac users
 Argp has to be installed. Using homebrew seems to be easiest.
@@ -52,12 +54,17 @@ Argp has to be installed. Using homebrew seems to be easiest.
 ## The Docker image
 See the docker file in this repository. All of dependency will be automatically resoleved. I tested the docker image of LongQC on both Linux and Mac.
 
-### 1. Build
-	docker build -t longqc --build-arg USER="foo" .
+### 1. Download Dockerfile
+Download Dockerfile in this repository to your local space. One example is below.
 
-The above command simply build a new container named LongQC. You can name username in the docker environment by passing to USER. The above example uses foo.
+        wget https://raw.githubusercontent.com/yfukasawa/LongQC/master/Dockerfile
 
-### 2. Run
+### 2. Build
+	docker build -t longqc .
+
+In the folder you saved Dockerfile above, run the docker command to build a new container named longqc.
+
+### 3. Run
 	docker run -it --rm -v /path/to/shared_dir/:/data longqc
 Run the LongQC container built by the above command. The container uses `/data` as a default workspace, and the above command mounts `/data` to `shared_dir` in the host.
 
@@ -137,6 +144,15 @@ These are the plots for a high quality public data. The overall stats show that 
 
 ## The usage of platformqc
 SMRT Portal, SMRT Link and some third-party tools for ONT can provide similar plots and stats. This subcommands generates equivalent stuff for users who do not have access to such servers/tools. 
+
+## Citing LongQC
+If you use LongQC in your project and cite the following publication, we'll be more than happy:
+
+```
+LongQC: A Quality Control Tool for Third Generation Sequencing Long Read Data.
+Yoshinori Fukasawa, Luca Ermini, Hai Wang, Karen Carty, Ming-Sin Cheung.
+G3: Genes, Genomes, Genetics, 10(4): 1193-1196, 2020
+```
 
 ## Copyright and license
 [minimap2](https://github.com/lh3/minimap2) was originally developed by Heng Li and licensed under MIT. [mix'EM](https://github.com/sseemayer/mixem) was developed by Stefan Seemayer and licensed under MIT. Yoshinori slightly modified their codes.
