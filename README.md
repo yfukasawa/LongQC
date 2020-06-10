@@ -20,9 +20,9 @@ LongQC was written in python3 and has dependencies for popular python libraries:
 
 * numpy
 * scipy
-* matplotlib
+* matplotlib (version 2.1.2 or higher)
 * scikit-learn
-* pandas
+* pandas (version 0.24.0 or higher)
 * jinja2
 * h5py
 

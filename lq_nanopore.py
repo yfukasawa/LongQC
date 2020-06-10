@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import numpy             as np
 
 from multiprocessing import Pool, Manager, Lock
-from lq_utils        import eprint
 from operator        import itemgetter
 
 def get_flowcell_coord():
@@ -101,6 +100,7 @@ def list_fast5_files(d, logger):
     return list_fast5
 
 def open_fast5(path):
+    from lq_utils import eprint
     try:
         f = h5py.File(path, 'r')
     except OSError as e:

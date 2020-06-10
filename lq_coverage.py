@@ -517,7 +517,7 @@ class LqCoverage:
         th_per    = self.df[LqCoverage.COVERAGE_COLUMN].quantile(0.85)
         if th_per == 0.0:
             th_per    = self.df[LqCoverage.COVERAGE_COLUMN].quantile(1.0)
-        nonzeros  = self.df[LqCoverage.COVERAGE_COLUMN].values[np.nonzero(self.df[LqCoverage.COVERAGE_COLUMN])]
+        nonzeros  = self.df[LqCoverage.COVERAGE_COLUMN].values[self.df[LqCoverage.COVERAGE_COLUMN].to_numpy().nonzero()]
         # we should not assume k=2 model, but tentatively work with this.
         i_bg = 0 if self.main_comp_index == 1 else 1
         i_m  = 1 if self.main_comp_index == 1 else 0
@@ -542,7 +542,7 @@ class LqCoverage:
             th_per = self.df[LqCoverage.COVERAGE_COLUMN].quantile(0.85)
             if th_per == 0.0:
                 th_per    = self.df[LqCoverage.COVERAGE_COLUMN].quantile(1.0)
-            nonzeros  = self.df[LqCoverage.COVERAGE_COLUMN].values[np.nonzero(self.df[LqCoverage.COVERAGE_COLUMN])]
+            nonzeros  = self.df[LqCoverage.COVERAGE_COLUMN].values[self.df[LqCoverage.COVERAGE_COLUMN].to_numpy().nonzero()]
             m_f   = mixture.GaussianMixture(n_components=k).fit(nonzeros[nonzeros < th_per].reshape(-1,1),1)
             
             #m_f   = mixture.GaussianMixture(n_components=k).fit(self.df[LqCoverage.COVERAGE_COLUMN].values[np.nonzero(self.df[LqCoverage.COVERAGE_COLUMN])].reshape(-1,1),1)
