@@ -57,14 +57,16 @@ See the docker file in this repository. All of dependency will be automatically 
 ### 1. Download Dockerfile
 Download Dockerfile in this repository to your local space. One example is below.
 
-        wget https://raw.githubusercontent.com/yfukasawa/LongQC/master/Dockerfile
+	wget https://raw.githubusercontent.com/yfukasawa/LongQC/master/Dockerfile
 
 ### 2. Build
+
 	docker build -t longqc .
 
 In the folder you saved Dockerfile above, run the docker command to build a new container named longqc.
 
 ### 3. Run
+
 	docker run -it --rm -v /path/to/shared_dir/:/data longqc
 Run the LongQC container built by the above command. The container uses `/data` as a default workspace, and the above command mounts `/data` to `shared_dir` in the host.
 
@@ -99,7 +101,7 @@ Run the LongQC container built by the above command. The container uses `/data` 
 * `--adapter_3` ADP3      adapter sequence for 3'.
 
 ##### Speed options:
-* `-a` or `--accurate` this turns on the more sensitive setting. More accurate but slower.
+* `-f` or `--fast` this turns off a sensitive setting but faster and less mem usage. Note: may not work well for a shallow coverage dataset (e.g. < 15x). 
 * `-p` or `--ncpu`the number of cpus for LongQC analysis
 * `-d` or `--db` make minimap2 db in parallel to other tasks.
 
@@ -111,6 +113,14 @@ Run the LongQC container built by the above command. The container uses `/data` 
 * `--pb` sample data from PacBio sequencers. this option will be overwritten by -x.
 * `--sequel` sample data from Sequel of PacBio. this option will be overwritten by -x.
 * `--ont` sample data from ONT sequencers. this option will be overwritten by -x.
+
+## Intermediate output details
+LongQC generates an intermediate table (longqc_sdust.txt).
+The tool automatically parses this file, but this might be useful for you either. In such a case, details for each column is below.
+
+|Column 1|Column 2|Column 3|Column 4|Column 5|Column 6|
+|---|---|---|---|---|---|
+|read name|the number of bases masked (MDUST)|read length|fraction of masked bases (=coulmn2/column3)|average read QV (For Sequel CLR, N/A)|the number of bases whose QV is higher than 7 (N/A for Sequel CLR)|
 
 ## Report
 Report files show traditional statistics such as length, GC content in json and html summaries. In addition, it summarizes coverage and the fraction of reads which has no coverage, we named this **non-sense reads**. If such fraction is a way high, it tells either 1) sequencing had some issues or 2) simply coverage is insufficient. 
