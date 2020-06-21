@@ -33,7 +33,7 @@ typedef struct {
     int max_overhang, min_ovlp;
     double min_ratio;
 } lq_fltopt_t;
-    
+
 typedef struct {
     uint32_t n;
     uint16_t *a;

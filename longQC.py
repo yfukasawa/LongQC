@@ -396,10 +396,6 @@ def command_sample(args):
         if write_fastq(sample_path, s_reads):
             logger.info('Subsampled seqs were written to a file. #seqs:%d' % s_n_seqs)
     else:
-        for i,t in enumerate(s_reads):
-            if type(t) is not list:
-                print(i, t)
-                
         if write_fastq(sample_path, s_reads):
             logger.info('Subsampled seqs were written to a file. #seqs:%d' % s_n_seqs)
 

@@ -80,7 +80,5 @@ class LqExec:
 # stand alone
 if __name__ == "__main__":
     pass
-    #print(subprocess.check_output('ls'))
-
-    #le = LqExec("/usr/bin/ls")
-    #le.exec("-ll", "-a", out="/home/fukasay/test_exec.txt")
+    le = LqExec("/usr/bin/ls")
+    le.exec("-l", "-a", out="./exec.txt")
