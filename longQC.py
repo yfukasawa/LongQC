@@ -3,7 +3,6 @@
 
    Project Name: longQC.py
    Start Date: 2017-10-10
-   Version: 1.1
 
    Usage:
       longQC.py [options]
@@ -15,7 +14,6 @@
 
     Bugs: Please contact to yoshinori.fukasawa@kaust.edu.sa
 '''
-
 import sys, os, json, argparse, shlex, array
 import logging
 import numpy  as np
@@ -25,6 +23,7 @@ from scipy.stats import gamma
 from jinja2      import Environment, FileSystemLoader
 from collections import OrderedDict
 from multiprocessing import Pool
+from _version import __version__
 
 import lq_nanopore
 import lq_rs
@@ -273,6 +272,7 @@ def command_sample(args):
         num_trim3     = 0
         max_iden_adp3 = 0.0
         adp_pos3      = array.array('i')
+
     # vars for subsampling
     cum_n_seq = 0
     s_reads   = []
@@ -327,12 +327,12 @@ def command_sample(args):
         if args.trim:
             write_fastq(args.trim, reads, is_chunk=True)
             logger.info("Trimmed read added.")
-        if tuple_5:
+        if args.adp5 and tuple_5:
             if tuple_5[0] > max_iden_adp5:
                 max_iden_adp5 = tuple_5[0]
             num_trim5 += tuple_5[1]
             adp_pos5.fromlist(tuple_5[2])
-        if tuple_3:
+        if args.adp3 and tuple_3:
             if tuple_3[0] > max_iden_adp3:
                 max_iden_adp3 = tuple_3[0]
             num_trim3 += tuple_3[1]
@@ -376,9 +376,16 @@ def command_sample(args):
                 continue
             else:
                 break
-        for i, t in enumerate(temp):
-            logger.info('Replacing %s with %s.' % (s_reads[ng_ovlp_indices[i]][0], t[0]))
-            s_reads[ng_ovlp_indices[i]] = t # replacing bad ones with ok ones
+        if len([i for i in temp if i]) < ng_ovlp:
+            # an edgy case, but can happen.
+            logger.warn('Replacing failed. Just removing highly masked ones.')
+            for i in ng_ovlp_indices:
+                s_reads[i] = 0
+            s_reads = [i for i in s_reads if i]
+        else:
+            for i, t in enumerate(temp):
+                logger.info('Replacing %s with %s.' % (s_reads[ng_ovlp_indices[i]][0], t[0]))
+                s_reads[ng_ovlp_indices[i]] = t # replacing bad ones with ok ones
 
     s_n_seqs = len([i for i in s_reads if i])
     if args.short:
@@ -389,6 +396,10 @@ def command_sample(args):
         if write_fastq(sample_path, s_reads):
             logger.info('Subsampled seqs were written to a file. #seqs:%d' % s_n_seqs)
     else:
+        for i,t in enumerate(s_reads):
+            if type(t) is not list:
+                print(i, t)
+                
         if write_fastq(sample_path, s_reads):
             logger.info('Subsampled seqs were written to a file. #seqs:%d' % s_n_seqs)
 
@@ -480,12 +491,12 @@ def command_sample(args):
     tobe_json["GC_stats"]["Mean_GC_content"] = float(gc_read_mean)
     tobe_json["GC_stats"]["SD_GC_content"]   = float(gc_read_sd)
 
-    if max_iden_adp5 >= 0.75:
+    if args.adp5 and max_iden_adp5 >= 0.75:
         tobe_json["Stats_for_adapter5"] = {}
         tobe_json["Stats_for_adapter5"]["Num_of_trimmed_reads_5"] = num_trim5
         tobe_json["Stats_for_adapter5"]["Max_identity_adp5"] = max_iden_adp5
         tobe_json["Stats_for_adapter5"]["Average_position_from_5_end"] = np.mean(adp_pos5)
-    if max_iden_adp3 >= 0.75:
+    if args.adp3 and max_iden_adp3 >= 0.75:
         tobe_json["Stats_for_adapter3"] = {}
         tobe_json["Stats_for_adapter3"]["Num_of_trimmed_reads_3"] = num_trim3
         tobe_json["Stats_for_adapter3"]["Max_identity_adp3"] = max_iden_adp3
@@ -577,8 +588,8 @@ def command_sample(args):
         lc = LqCoverage(cov_path, isTranscript=args.transcript, control_filtering=pb_control)
     lc.plot_coverage_dist(fig_path_cv)
     lc.plot_unmapped_frac_terminal(fig_path_ta, \
-                                   adp5_pos=np.mean(adp_pos5) if adp_pos5 and np.mean(adp_pos5) > 0 else None, \
-                                   adp3_pos=np.mean(adp_pos3) if adp_pos3 and np.mean(adp_pos3) > 0 else None)
+                                   adp5_pos=np.mean(adp_pos5) if args.adp5 and adp_pos5 and np.mean(adp_pos5) > 0 else None, \
+                                   adp3_pos=np.mean(adp_pos3) if args.adp3 and adp_pos3 and np.mean(adp_pos3) > 0 else None)
     lc.plot_qscore_dist(fig_path_qv)
     if n50 < 3000:
         lc.plot_length_vs_coverage(fig_path_cl, interval=n50/2)
@@ -684,16 +695,17 @@ def command_sample(args):
         pass
         #root_dict['stats']["Estimated low quality read fraction"] = "%.3f" % float(lc.get_unmapped_bad_frac() - lc.get_unmapped_med_frac())
 
-    if max_iden_adp5 >= 0.75 or max_iden_adp3 >= 0.75:
-        root_dict['ad'] = OrderedDict()
-    if max_iden_adp5 >= 0.75:
-        root_dict['ad']["Number of trimmed reads in 5\' "] = num_trim5
-        root_dict['ad']["Max seq identity for the adpter in 5\'"] = "%.3f" % max_iden_adp5
-        root_dict['ad']["Average trimmed length in 5\'"] = "%.3f" % np.mean(adp_pos5)
-    if max_iden_adp3 >= 0.75:
-        root_dict['ad']["Number of trimmed reads in 3\'"] = num_trim3
-        root_dict['ad']["Max seq identity for the adpter in 3\'"] = "%.3f" % max_iden_adp3
-        root_dict['ad']["Average trimmed length in 3\'"] = "%.3f" % np.mean(adp_pos3)
+    if args.adp5 or args.adp3:
+        if max_iden_adp5 >= 0.75 or max_iden_adp3 >= 0.75:
+            root_dict['ad'] = OrderedDict()
+        if args.adp5 and max_iden_adp5 >= 0.75:
+            root_dict['ad']["Number of trimmed reads in 5\' "] = num_trim5
+            root_dict['ad']["Max seq identity for the adpter in 5\'"] = "%.3f" % max_iden_adp5
+            root_dict['ad']["Average trimmed length in 5\'"] = "%.3f" % np.mean(adp_pos5)
+        if args.adp3 and max_iden_adp3 >= 0.75:
+            root_dict['ad']["Number of trimmed reads in 3\'"] = num_trim3
+            root_dict['ad']["Max seq identity for the adpter in 3\'"] = "%.3f" % max_iden_adp3
+            root_dict['ad']["Average trimmed length in 3\'"] = "%.3f" % np.mean(adp_pos3)
 
     if args.pb:
         root_dict['pb'] = True
@@ -833,10 +845,11 @@ def command_sample(args):
 if __name__ == "__main__":
     # parsing
     parser = argparse.ArgumentParser(
-        prog='LongQC.py',
+        prog='LongQC',
         description='LongQC is a software to asses the quality of long read data from the third generation sequencers.',
         add_help=True,
     )
+    parser.add_argument('-v', '--version', action='version', version='%(prog)s ' + __version__)
     subparsers = parser.add_subparsers()
 
     # run qc
