@@ -94,7 +94,7 @@ def command_sample(args):
         suffix = ""
 
     ncpu = int(args.ncpu)
-    path_minimap2  = os.path.join(os.path.dirname(os.path.abspath(__file__)), "minimap2_mod")
+    path_minimap2  = os.path.join(os.path.dirname(os.path.abspath(__file__)), "minimap2-coverage")
     pb_control     = None
     merged_control = None
     cov_path    = os.path.join(args.out, "analysis", "minimap2", "coverage_out" + suffix + ".txt")
@@ -396,10 +396,6 @@ def command_sample(args):
         if write_fastq(sample_path, s_reads):
             logger.info('Subsampled seqs were written to a file. #seqs:%d' % s_n_seqs)
     else:
-        for i,t in enumerate(s_reads):
-            if type(t) is not list:
-                print(i, t)
-                
         if write_fastq(sample_path, s_reads):
             logger.info('Subsampled seqs were written to a file. #seqs:%d' % s_n_seqs)
 

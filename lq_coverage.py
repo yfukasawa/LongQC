@@ -78,11 +78,11 @@ class LqCoverage:
     QLENGTH_COLUMN     = 1
     N_MBASE_COLUMN     = 2
     MED_READ_COV_CORS  = 4
-    GOOD_READ_COV_CORS = 5
-    T1_COVERAGE_COLUMN = 6
-    QV_COLUMN          = 7
-    DIV_COLUMN         = 8
-    COVERAGE_COLUMN    = 9
+    #GOOD_READ_COV_CORS = 5
+    T1_COVERAGE_COLUMN = 5
+    QV_COLUMN          = 6
+    DIV_COLUMN         = 7
+    COVERAGE_COLUMN    = 8
 
     def __init__(self, table_path, isTranscript=False, control_filtering=None, engine='python'):
         self.df = pd.read_table(table_path, sep='\t', header=None)
