@@ -695,17 +695,16 @@ def command_sample(args):
         pass
         #root_dict['stats']["Estimated low quality read fraction"] = "%.3f" % float(lc.get_unmapped_bad_frac() - lc.get_unmapped_med_frac())
 
-    if args.adp5 or args.adp3:
-        if max_iden_adp5 >= 0.75 or max_iden_adp3 >= 0.75:
-            root_dict['ad'] = OrderedDict()
-        if args.adp5 and max_iden_adp5 >= 0.75:
-            root_dict['ad']["Number of trimmed reads in 5\' "] = num_trim5
-            root_dict['ad']["Max seq identity for the adpter in 5\'"] = "%.3f" % max_iden_adp5
-            root_dict['ad']["Average trimmed length in 5\'"] = "%.3f" % np.mean(adp_pos5)
-        if args.adp3 and max_iden_adp3 >= 0.75:
-            root_dict['ad']["Number of trimmed reads in 3\'"] = num_trim3
-            root_dict['ad']["Max seq identity for the adpter in 3\'"] = "%.3f" % max_iden_adp3
-            root_dict['ad']["Average trimmed length in 3\'"] = "%.3f" % np.mean(adp_pos3)
+    if (args.adp5 and max_iden_adp5 >= 0.75) or (args.adp3 and max_iden_adp3 >= 0.75):
+        root_dict['ad'] = OrderedDict()
+    if args.adp5 and max_iden_adp5 >= 0.75:
+        root_dict['ad']["Number of trimmed reads in 5\' "] = num_trim5
+        root_dict['ad']["Max seq identity for the adpter in 5\'"] = "%.3f" % max_iden_adp5
+        root_dict['ad']["Average trimmed length in 5\'"] = "%.3f" % np.mean(adp_pos5)
+    if args.adp3 and max_iden_adp3 >= 0.75:
+        root_dict['ad']["Number of trimmed reads in 3\'"] = num_trim3
+        root_dict['ad']["Max seq identity for the adpter in 3\'"] = "%.3f" % max_iden_adp3
+        root_dict['ad']["Average trimmed length in 3\'"] = "%.3f" % np.mean(adp_pos3)
 
     if args.pb:
         root_dict['pb'] = True
