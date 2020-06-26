@@ -1,4 +1,4 @@
-# LongQC (an development version)
+# LongQC (a development version)
 
 ## Note
 minimap2 step is slightly different from the main version, please follow different procedure for this development version.
