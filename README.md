@@ -1,4 +1,7 @@
-# LongQC
+# LongQC (an development version)
+
+## Note
+minimap2 step is slightly different from the main version, please follow different procedure for this development version.
 
 ## What is LongQC?
 LongQC is a tool for the data quality control of the PacBio and ONT long reads, and it has two functionalities: sample qc and platform qc.
@@ -42,8 +45,8 @@ Anaconda should be an easier choice. We recommend [anaconda3](https://www.anacon
 Modified version of minimap2 named minimap2-coverage is also required. If you are a Mac user, you have to prepare libc for argp.h.
 
 	cd /path/to/download/
-	git clone https://github.com/yfukasawa/LongQC.git
-	cd LongQC/minimap2_mod && make extra
+	git clone -b minimap2_update https://github.com/yfukasawa/LongQC.git
+	cd $HOME/LongQC/minimap2-coverage && make
 
 
 #### For Mac users
