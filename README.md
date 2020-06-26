@@ -2,6 +2,7 @@
 
 ## Note
 minimap2 step is slightly different from the main version, please follow different procedure for this development version.
+This version has a different Dockerfile either, please check details below.
 
 ## What is LongQC?
 LongQC is a tool for the data quality control of the PacBio and ONT long reads, and it has two functionalities: sample qc and platform qc.
@@ -60,7 +61,7 @@ See the docker file in this repository. All of dependency will be automatically 
 ### 1. Download Dockerfile
 Download Dockerfile in this repository to your local space. One example is below.
 
-	wget https://raw.githubusercontent.com/yfukasawa/LongQC/master/Dockerfile
+	wget https://raw.githubusercontent.com/yfukasawa/LongQC/minimap2_update/Dockerfile
 
 ### 2. Build
 
