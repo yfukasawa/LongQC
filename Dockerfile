@@ -29,9 +29,9 @@ RUN useradd -m ${USER}
 # define a password for user
 RUN echo "${USER}:test_pass" | chpasswd
 
-ADD https://api.github.com/repos/yfukasawa/longqc/git/refs/heads/master version.json
-RUN git clone https://github.com/yfukasawa/LongQC.git $HOME/LongQC
-RUN cd $HOME/LongQC/minimap2_mod && make extra
+ADD https://api.github.com/repos/yfukasawa/longqc/git/refs/heads/minimap2_update version.json
+RUN git clone -b minimap2_update https://github.com/yfukasawa/LongQC.git $HOME/LongQC
+RUN cd $HOME/LongQC/minimap2-coverage && make
 
 # install dependency
 RUN conda update -y conda
