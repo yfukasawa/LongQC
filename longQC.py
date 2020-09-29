@@ -183,6 +183,13 @@ def command_sample(args):
             minimap2_med_score_threshold = 80
             if args.short:
                 minimap2_med_score_threshold_short = 60
+        elif p == 'pb-hifi':
+            args.pb = True
+            args.sequel = True
+            args.adp5 = "ATCTCTCTCAACAACAACAACGGAGGAGGAGGAAAAGAGAGAGAT" if not args.adp5 else args.adp5
+            args.adp3 = "ATCTCTCTCAACAACAACAACGGAGGAGGAGGAAAAGAGAGAGAT" if not args.adp3 else args.adp3
+            minimap2_params = "-Y -l 0 -q 160"
+            minimap2_med_score_threshold = 80
         elif p == 'ont-ligation':
             args.ont = True
             args.adp5 = "AATGTACTTCGTTCAGTTACGTATTGCT" if not args.adp5 else args.adp5
@@ -207,10 +214,17 @@ def command_sample(args):
             minimap2_med_score_threshold = 160
             if args.short:
                 minimap2_med_score_threshold_short = 140
-        if args.fast:
-            minimap2_db_params = "-k 15 -w 5 -I %s" % args.inds
+
+        if p == 'pb-hifi':
+            if args.fast:
+                minimap2_db_params = "-k 19 -w 10 -I %s" % args.inds
+            else:
+                minimap2_db_params = "-k 15 -w 5 -I %s" % args.inds
         else:
-            minimap2_db_params = "-k 12 -w 5 -I %s" % args.inds 
+            if args.fast:
+                minimap2_db_params = "-k 15 -w 5 -I %s" % args.inds
+            else:
+                minimap2_db_params = "-k 12 -w 5 -I %s" % args.inds 
 
         logger.info("Preset \"%s\" was applied. Options --pb(--ont) is overwritten." % (p,))
 
@@ -243,7 +257,7 @@ def command_sample(args):
             merged_control       = os.path.join(args.out, "analysis", "minimap2", "merged_spiked_in_control" + suffix + ".txt")
 
     if args.short:
-        minimap2_db_params_short = "-k 9 -w 1 -I %s" % args.inds 
+        minimap2_db_params_short = "-k 12 -w 5 -I %s" % args.inds 
 
     if args.db and file_format_code != 0:
         ncpu -= 3 # subtract cpus for the minimap2 db
@@ -593,7 +607,9 @@ def command_sample(args):
         lc.plot_length_vs_coverage(fig_path_cl)
     logger.info("Generated coverage related plots.")
 
-    if (args.transcript and float(lc.get_logn_mode()) < very_low_coverage_threshold) \
+    if lc.is_no_coverage():
+        pass # please keep this to avoid evaluate below conditions
+    elif (args.transcript and float(lc.get_logn_mode()) < very_low_coverage_threshold) \
        or (lc.is_low_coverage() and float(lc.get_logn_mode()) < very_low_coverage_threshold) \
        or (float(lc.get_mean()) < very_low_coverage_threshold):
         logger.info("Coverage looks to be very low. Turns on the very low coverage mode.")
@@ -650,10 +666,14 @@ def command_sample(args):
         tobe_json["Coverage_stats"]["Mode_coverage"]  = float(lc.get_logn_mode())
         tobe_json["Coverage_stats"]["mu_coverage"]    = float(lc.get_logn_mu())
         tobe_json["Coverage_stats"]["sigma_coverage"] = float(lc.get_logn_sigma())
+    elif lc.is_no_coverage():
+        tobe_json["Coverage_stats"]["Mean_coverage"] = "NA"
+        tobe_json["Coverage_stats"]["SD_coverage"]   = "NA"
     else:
         tobe_json["Coverage_stats"]["Mean_coverage"] = float(lc.get_mean())
         tobe_json["Coverage_stats"]["SD_coverage"]   = float(lc.get_sd())
         # adjust threshold for very low coverage
+
     tobe_json["Coverage_stats"]["Estimated crude Xome size"] = str(lc.calc_xome_size(throughput))
 
     with open(json_path, "w") as f:
@@ -684,13 +704,6 @@ def command_sample(args):
     if lc.get_control_frac():
         root_dict['stats']['Estimated spiked-in control read fraction'] = "%.3f" % float(lc.get_control_frac())
 
-    #if lc.get_high_div_frac():
-    #    root_dict['stats']['Reliable Highly diverged fraction'] = "%.3f" % float(lc.get_high_div_frac())
-
-    if args.pb == True:
-        pass
-        #root_dict['stats']["Estimated low quality read fraction"] = "%.3f" % float(lc.get_unmapped_bad_frac() - lc.get_unmapped_med_frac())
-
     if (args.adp5 and max_iden_adp5 >= 0.75) or (args.adp3 and max_iden_adp3 >= 0.75):
         root_dict['ad'] = OrderedDict()
     if args.adp5 and max_iden_adp5 >= 0.75:
@@ -714,7 +727,16 @@ def command_sample(args):
                                ('N50', "%.3f" % n50)])}
     root_dict['rq'] = {'name':enc_b64_str(fig_path_rq)}
 
-    if args.transcript:
+    if lc.is_no_coverage():
+        root_dict['rc'] = {'cov_plot_name':enc_b64_str(fig_path_cv),
+                           'cov_over_len_plot_name':enc_b64_str(fig_path_cl),\
+                           'cov_ovlp_qv_plot_name':enc_b64_str(fig_path_qv),\
+                           'stats':OrderedDict([\
+                                                ('Number of sampled reads', s_n_seqs),\
+                                                ('Mean per read coverage', "N/A"),\
+                                                ('S.D. per read coverage', "N/A"), \
+                                                ('Crude estimated Xome size', lc.calc_xome_size(throughput))])}
+    elif args.transcript:
         root_dict['rc'] = {'cov_plot_name':enc_b64_str(fig_path_cv),
                            'cov_over_len_plot_name':enc_b64_str(fig_path_cl),\
                            'cov_ovlp_qv_plot_name':enc_b64_str(fig_path_qv),\
@@ -764,7 +786,9 @@ def command_sample(args):
         elif q7/throughput <= 0.5:
             root_dict['errors']['Too low Q7'] = 'This value should be higher than 50%. Ideally, higher than 65%.'
 
-    if very_low_coverage_mode:
+    if lc.is_no_coverage():
+        root_dict['errors']['Coverage estimation failure'] = 'Coverage estimation cannot be made. No or very little coverage data exists.'
+    elif very_low_coverage_mode:
         if lc.is_low_coverage():
             root_dict['warns']['Low coverage'] = 'Coverage of data looks to be very low/skewed.'
         else:
@@ -862,7 +886,7 @@ if __name__ == "__main__":
     parser_run.set_defaults(handler=command_run)
 
     # run sample
-    presets = ["pb-rs2", "pb-sequel", "ont-ligation", "ont-rapid", "ont-1dsq"]
+    presets = ["pb-rs2", "pb-sequel", "pb-hifi", "ont-ligation", "ont-rapid", "ont-1dsq"]
     help_preset = 'a platform/kit to be evaluated. adapter and some ovlp parameters are automatically applied. ('+", ".join(presets)+')'
     parser_sample = subparsers.add_parser('sampleqc', help='see `sampleqc -h`')
     parser_sample.add_argument('input', help='Input [fasta, fastq or pbbam]', type=str)

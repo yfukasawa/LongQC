@@ -99,6 +99,7 @@ class LqCoverage:
         self.main_comp_index = None
         self.control_reads = None
         self.low_coverage = None
+        self.no_coverage = None
 
         if control_filtering is not None:
             self.df_control = pd.read_table(control_filtering, sep='\t', header=None)
@@ -171,6 +172,12 @@ class LqCoverage:
     #        logger.warning("Unmapped bad read fraction has no value. Do estimation first.")
     #    return self.unmapped_bad_frac
 
+    def is_no_coverage(self):
+        if self.no_coverage != None:
+            return self.no_coverage
+        else:
+            return None
+
     def is_low_coverage(self):
         if self.low_coverage != None:
             return self.low_coverage
@@ -218,6 +225,7 @@ class LqCoverage:
         #logger.info("Unmapped fraction: %.3f (naive), %.3f (coverage considered)" % (self.unmapped_frac_untrimmed, self.unmapped_frac_trimmed))
 
         model_main_comp = self.__est_coverage_dist_gmm(k_i=2)
+            
         self.model = model_main_comp[0]
         self.mean_main = model_main_comp[1]
         self.cov_main  = model_main_comp[2]
@@ -240,6 +248,12 @@ class LqCoverage:
             self.max_lambda = -1 * math.log(self.unmapped_frac_med - LqCoverage.UNMAPPED_FRACTION_PARAM_MAX)
             range_str = str(self.min_lambda) + "-" + str(self.max_lambda)
             logger.warning("If and only if the data is healthy, very rough estimated coverage range is %s." % range_str)
+
+        if self.model is None:
+            self.low_coverage = None # no_coverage is a stronger condition.
+            self.no_coverage = True
+            logger.warning("No coverage data is available.")
+            return
 
         # skewed dist. sometimes occur in low coverage data and/or long tail
         if self.low_coverage and self.unmapped_frac_med < LqCoverage.UNMAPPED_FRACTION_THRESHOLD and not self.isTranscript:
@@ -316,6 +330,8 @@ class LqCoverage:
             plt.plot(gmm_x, mix_y, label="Fitted by Lognormal and gaussian mixture model")
             plt.xlim(0, self.mean_main+10*np.sqrt(self.cov_main))
             plt.legend(bbox_to_anchor=(1,1), loc='upper right', borderaxespad=1)
+        elif self.model is None:
+            plt.gcf().text(0.30,0.5,"Caution: coverage estimation was skipped due to insufficient amount of data.", backgroundcolor='yellow')            
         else:
             gmm_y = np.exp(self.model.score_samples(gmm_x.reshape(-1,1)))
             plt.plot(gmm_x, gmm_y, label="Fitted by Gaussian mixture model")
@@ -351,7 +367,9 @@ class LqCoverage:
 
     def calc_xome_size(self, throughput):
         m_size = -1
-        if self.isTranscript:
+        if self.no_coverage:
+            return "N/A"
+        elif self.isTranscript:
             m_size = int((throughput * (1.0 - self.unmapped_frac_med)) / self.mode_logn_main)
         elif self.low_coverage:
             m_size = int((throughput * (1.0 - self.unmapped_frac_med)) / self.mode_logn_main)
@@ -543,9 +561,13 @@ class LqCoverage:
             if th_per == 0.0:
                 th_per    = self.df[LqCoverage.COVERAGE_COLUMN].quantile(1.0)
             nonzeros  = self.df[LqCoverage.COVERAGE_COLUMN].values[self.df[LqCoverage.COVERAGE_COLUMN].to_numpy().nonzero()]
-            m_f   = mixture.GaussianMixture(n_components=k).fit(nonzeros[nonzeros < th_per].reshape(-1,1),1)
-            
-            #m_f   = mixture.GaussianMixture(n_components=k).fit(self.df[LqCoverage.COVERAGE_COLUMN].values[np.nonzero(self.df[LqCoverage.COVERAGE_COLUMN])].reshape(-1,1),1)
+            if nonzeros[nonzeros < th_per].size == 0:
+                # literally no data case!
+                # give some dummy
+                return (None, 1, 10, 0)
+            else:
+                m_f   = mixture.GaussianMixture(n_components=k).fit(nonzeros[nonzeros < th_per].reshape(-1,1),1)
+
             logger.debug(m_f)
             order = m_f.weights_/[e[0] for inner in m_f.covariances_ for e in inner] # w/\sigma
             ratio = np.array([e for i in m_f.means_ for e in i])/np.array([e[0] for i in m_f.covariances_ for e in i])
@@ -616,10 +638,29 @@ class LqCoverage:
 # test
 if __name__ == "__main__":
 
-    inf  = sys.argv[1]
-    outf = sys.argv[2]
-    lc = LqCoverage(inf, isTranscript=False)
-    #lc.plot_coverage_dist()
+    parser = argparse.ArgumentParser(
+        prog='lq_coverage.py',
+        description='a module for LongQC. gestimates coverage and generates plots and some stats from tables.',
+        add_help=True,
+    )
+    parser.add_argument('input_minimap2-coverage_table', dest='inf', \
+                        help='path for coverage_out.txt made by minimap2-coverage.', type=str)
+    parser.add_argument('output', dest='outf', \
+                        help='output path where plots are saved.', type=str)
+    parser.add_argument('--control', dest='conf',\
+                        help='(optional) path for spikein_out.txt.', type=str)
+    args = parser.parse_args()
+
+    if args.conf:
+        conf = args.conf
+    else:
+        conf = None
+
+    inf  = args.inf
+    outf = args.outf
+
+    lc = LqCoverage(inf, isTranscript=False, control_filtering=conf)
+    lc.plot_coverage_dist(outf)
     if lc.mode_logn_main:
         print("Mode of LogN mix: %.3f" % lc.mode_logn_main)
         print("Mean of GMM: %.3f" % lc.mean_main)
