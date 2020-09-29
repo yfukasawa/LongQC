@@ -20,9 +20,8 @@ ENV HOME /home/${USER}
 
 ### LABELS ###
 LABEL base_image="miniconda3"
-LABEL version="1.1"
 LABEL software="LongQC docker"
-LABEL software.version="1.1"
+LABEL software.version="1.2"
 
 # add a general user account
 RUN useradd -m ${USER}
@@ -30,7 +29,7 @@ RUN useradd -m ${USER}
 RUN echo "${USER}:test_pass" | chpasswd
 
 ADD https://api.github.com/repos/yfukasawa/longqc/git/refs/heads/minimap2_update version.json
-RUN git clone -b minimap2_update https://github.com/yfukasawa/LongQC.git $HOME/LongQC
+RUN git clone https://github.com/yfukasawa/LongQC.git $HOME/LongQC
 RUN cd $HOME/LongQC/minimap2-coverage && make
 
 # install dependency

@@ -64,6 +64,10 @@ def main(args):
         parser.print_help()
 
 def command_sample(args):
+    if args.ncpu < 4:
+        eprint("Error: -p/--ncpu needs to be 4 or higher.")
+        sys.exit(1)
+
     if not os.path.exists(args.input):
         eprint("Error: input file %s does not exist." % args.input)
         sys.exit(1)
@@ -918,7 +922,7 @@ if __name__ == "__main__":
     parser_sample.add_argument('-f', '--fast',\
                                help='this turns off sensitive setting. Faster but less accurate.', action = 'store_true',\
                                dest = 'fast', default = None)
-    parser_sample.add_argument('-p', '--ncpu', help='the number of cpus for LongQC analysis [Default is 4]', type=int, dest = 'ncpu', default = 1)
+    parser_sample.add_argument('-p', '--ncpu', help='the number of cpus for LongQC analysis [Default is 4. >=4 is required.]', type=int, dest = 'ncpu', default = 4)
     parser_sample.add_argument('-d', '--db',\
                                help='make minimap2 db in parallel to other tasks.',\
                                dest = 'db', action = 'store_true', default = False)
