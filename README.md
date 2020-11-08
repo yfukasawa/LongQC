@@ -43,13 +43,13 @@ Modified version of minimap2 named minimap2-coverage is also required. If you ar
 
 	cd /path/to/download/
 	git clone https://github.com/yfukasawa/LongQC.git
-	cd LongQC/minimap2_mod && make extra
+	cd LongQC/minimap2-coverage && make
 
 
 #### For Mac users
 Argp has to be installed. Using homebrew seems to be easiest.
 
-	brew argp-standalone
+	brew install argp-standalone
 
 ## The Docker image
 See the docker file in this repository. All of dependency will be automatically resoleved. I tested the docker image of LongQC on both Linux and Mac.
