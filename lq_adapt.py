@@ -3,8 +3,9 @@ import numpy as np
 import edlib
 from lq_utils    import open_seq
 
-from logging import getLogger
-logger = getLogger(__name__)
+import logging
+#from logging import getLogger
+logger = logging.getLogger(__name__)
 
 def _cutr(reads, adp, th, r, len_list=[]):
     iden_max  = -1
@@ -108,7 +109,7 @@ if __name__ == "__main__":
     adp5 = "ATCTCTCTCAACAACAACAACGGAGGAGGAGGAAAAGAGAGAGAT"
     adp3 = "ATCTCTCTCAACAACAACAACGGAGGAGGAGGAAAAGAGAGAGAT"
 
-    logger = logging.getLogger(__name__)
+    #logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
     sh = logging.StreamHandler()
     formatter = logging.Formatter('%(module)s:%(asctime)s:%(lineno)d:%(levelname)s:%(message)s')
@@ -118,5 +119,5 @@ if __name__ == "__main__":
     logger.info("Input file: %s" % seqf)
     (file_format_code, reads, n_seqs, n_bases) = open_seq(seqf)
     logger.info("File was loaded.")
-    (tuple_5, tuple_3) = cut_adapter(reads, adp_t=adp5, adp_b=adp3, logger=logger)
+    (tuple_5, tuple_3) = cut_adapter(reads, adp_t=adp5, adp_b=adp3)
     
