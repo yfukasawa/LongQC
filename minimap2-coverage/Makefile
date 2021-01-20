@@ -18,6 +18,10 @@ else
     INCLUDES+=-I sse2neon
 endif
 
+ifeq  ($(shell uname),Darwin)
+    LIBS += -largp
+endif
+
 .PHONY:all extra clean depend
 .SUFFIXES:.c .o
 
