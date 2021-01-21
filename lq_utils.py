@@ -121,9 +121,9 @@ def guess_format(fn):
         # YF memo: 1f 8b 08 04 code can exist in fq.gz either.
         # changed the logic.
         fh.close()
-        with gzip.open(fn, 'rt') as f:
-            l = f.readline()
-            if "BAM" in l[0:3]:
+        with gzip.open(fn, 'rb') as f:
+            l = f.read(4)
+            if "BAM" in l.decode(): # this should be 'BAM\x01'
                 logger.debug("%s is a compressed BAM." % fn)
                 return 0
             else:
