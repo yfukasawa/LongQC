@@ -457,9 +457,15 @@ class LqCoverage:
         ### read score after size binning.
         subplot  = self.__gen_boxplot_length_vs_coverage(interval)
         bin_size = self.df.groupby('Binned read length').size()
-        boundary_reliable_bin = np.where(bin_size >=  LqCoverage.LENGTH_BIN_THRESHOLD)[0].max()
+        boundary_reliable_bins = np.where(bin_size >=  LqCoverage.LENGTH_BIN_THRESHOLD)[0]
         xmin, xmax = plt.gca().get_xlim()
-        plt.axvspan(boundary_reliable_bin+1.5, xmax+1, facecolor='gray', alpha=0.1)
+        dmin = boundary_reliable_bins.min()
+        dmax = boundary_reliable_bins.max()
+        if dmax < xmax:
+            plt.axvspan(boundary_reliable_bins.max()+1.5, xmax+1, facecolor='gray', alpha=0.1)
+        if dmin > xmin:
+            plt.axvspan(xmin-1, dmin+1.5, facecolor='gray', alpha=0.1)
+        plt.xlim(xmin, xmax)
         #plt.axhline(y=self.mean_main, linestyle='dashed', linewidth=2, color='red', alpha=0.2) # a bit misleading in case skewed dist
         plt.title("Read coverage over different length reads")
         plt.xticks(np.arange(xmax+1), [int(i) for i in np.arange(xmax+1)*interval])
@@ -497,7 +503,7 @@ class LqCoverage:
 
     def __check_outlier_coverage(self, interval):
         stats = self.df.groupby('Binned read length')[LqCoverage.COVERAGE_COLUMN].agg([np.median, np.size])
-        meds = stats['median'][np.where(stats['size']>=LqCoverage.LENGTH_BIN_THRESHOLD)[0]]
+        meds = stats['median'].iloc[np.where(stats['size']>=LqCoverage.LENGTH_BIN_THRESHOLD)[0]]
         three_sigma = np.where((meds > self.get_mean() + 3*self.get_sd()) | (meds <= self.get_mean() - 3*self.get_sd()))
         if len(three_sigma[0]) > 0:
             #error case
@@ -638,14 +644,15 @@ class LqCoverage:
 # test
 if __name__ == "__main__":
 
+    import argparse
     parser = argparse.ArgumentParser(
         prog='lq_coverage.py',
         description='a module for LongQC. gestimates coverage and generates plots and some stats from tables.',
         add_help=True,
     )
-    parser.add_argument('input_minimap2-coverage_table', dest='inf', \
+    parser.add_argument('input', \
                         help='path for coverage_out.txt made by minimap2-coverage.', type=str)
-    parser.add_argument('output', dest='outf', \
+    parser.add_argument('--output', dest='outf', \
                         help='output path where plots are saved.', type=str)
     parser.add_argument('--control', dest='conf',\
                         help='(optional) path for spikein_out.txt.', type=str)
@@ -656,7 +663,7 @@ if __name__ == "__main__":
     else:
         conf = None
 
-    inf  = args.inf
+    inf  = args.input
     outf = args.outf
 
     lc = LqCoverage(inf, isTranscript=False, control_filtering=conf)
