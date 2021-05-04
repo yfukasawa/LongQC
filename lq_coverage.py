@@ -85,7 +85,7 @@ class LqCoverage:
     COVERAGE_COLUMN    = 8
 
     def __init__(self, table_path, isTranscript=False, control_filtering=None, engine='python'):
-        self.df = pd.read_table(table_path, sep='\t', header=None)
+        self.df = pd.read_table(table_path, sep='\t', header=None, dtype={3: str, 4: str})
         self.min_lambda = None
         self.max_lambda = None
         self.unmapped_frac_trimmed   = -1.0
@@ -459,12 +459,15 @@ class LqCoverage:
         bin_size = self.df.groupby('Binned read length').size()
         boundary_reliable_bins = np.where(bin_size >=  LqCoverage.LENGTH_BIN_THRESHOLD)[0]
         xmin, xmax = plt.gca().get_xlim()
-        dmin = boundary_reliable_bins.min()
-        dmax = boundary_reliable_bins.max()
-        if dmax < xmax:
-            plt.axvspan(boundary_reliable_bins.max()+1.5, xmax+1, facecolor='gray', alpha=0.1)
-        if dmin > xmin:
-            plt.axvspan(xmin-1, dmin+1.5, facecolor='gray', alpha=0.1)
+        if boundary_reliable_bins.size > 0:
+            dmin = boundary_reliable_bins.min()
+            dmax = boundary_reliable_bins.max()
+            if dmax < xmax:
+                plt.axvspan(boundary_reliable_bins.max()+1.5, xmax+1, facecolor='gray', alpha=0.1)
+            if dmin > xmin:
+                plt.axvspan(xmin-1, dmin+1.5, facecolor='gray', alpha=0.1)
+        else:
+            plt.axvspan(xmin-1,xmax+1,facecolor='gray', alpha=0.1)
         plt.xlim(xmin, xmax)
         #plt.axhline(y=self.mean_main, linestyle='dashed', linewidth=2, color='red', alpha=0.2) # a bit misleading in case skewed dist
         plt.title("Read coverage over different length reads")
@@ -499,7 +502,11 @@ class LqCoverage:
         self.df.loc[self.df[LqCoverage.QLENGTH_COLUMN] <  3000, 'MERGED_COVERAGE'] = self.df[LqCoverage.T1_COVERAGE_COLUMN]
         self.df['Binned read length'] = np.floor(self.df[LqCoverage.QLENGTH_COLUMN].values/interval)
         #return self.df.boxplot(column=LqCoverage.COVERAGE_COLUMN, by='Binned read length', sym='+', rot=90, figsize=(2*int(max(self.df['Binned read length'])/5+0.5), 4.8))
-        return self.df.boxplot(column='MERGED_COVERAGE', by='Binned read length', sym='+', rot=90, figsize=(2*int(max(self.df['Binned read length'])/5+0.5), 4.8))
+        #return self.df.boxplot(column='MERGED_COVERAGE', by='Binned read length', sym='+', rot=90, figsize=(2*int(max(self.df['Binned read length'])/5+0.5), 4.8))
+        if max(self.df['Binned read length']) < 5:
+            return self.df.boxplot(column='MERGED_COVERAGE', by='Binned read length', sym='+', rot=90)
+        else:
+            return self.df.boxplot(column='MERGED_COVERAGE', by='Binned read length', sym='+', rot=90, figsize=(2*int(max(self.df['Binned read length'])/5+0.5), 4.8))
 
     def __check_outlier_coverage(self, interval):
         stats = self.df.groupby('Binned read length')[LqCoverage.COVERAGE_COLUMN].agg([np.median, np.size])
@@ -678,7 +685,7 @@ if __name__ == "__main__":
     plt.rcParams['figure.figsize'] = (7, 7)
     plt.rcParams['pdf.fonttype'] = 42
     plt.rcParams['ps.fonttype'] = 42
-    #lc.plot_length_vs_coverage(outf)
+    lc.plot_length_vs_coverage(outf)
     #lc.plot_unmapped_frac_terminal(outf)
     print("%% non-sense reads: %.3f" % lc.get_unmapped_med_frac())
     print("%% control reads: %.3f" % lc.get_control_frac())
