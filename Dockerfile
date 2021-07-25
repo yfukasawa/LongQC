@@ -1,8 +1,14 @@
 # build minimap2-coverage
 FROM continuumio/miniconda3
+
 ### MAINTAINER ###
 MAINTAINER Yoshinori Fukasawa <yoshinori.fukasawa@kaust.edu.sa>
+### LABELS ###
+LABEL base_image="miniconda3"
+LABEL software="LongQC docker"
+LABEL software.version="1.2"
 
+### Basic dependency ###
 RUN apt-get clean all && \
     apt-get update && \
     apt-get upgrade -y && \
@@ -14,41 +20,35 @@ RUN apt-get clean all && \
     apt-get clean && \
     apt-get purge
 
-### ENV VARS ###
-ENV USER user
-ENV HOME /home/${USER}
-
-### LABELS ###
-LABEL base_image="miniconda3"
-LABEL software="LongQC docker"
-LABEL software.version="1.2"
-
-# add a general user account
-RUN useradd -m ${USER}
-# define a password for user
-RUN echo "${USER}:test_pass" | chpasswd
-
+### LongQC installation ###
 ADD https://api.github.com/repos/yfukasawa/longqc/git/refs/heads/minimap2_update version.json
 RUN git clone https://github.com/yfukasawa/LongQC.git $HOME/LongQC
 RUN cd $HOME/LongQC/minimap2-coverage && make
+RUN cd $HOME/LongQC && \
+    sed -i \
+    -e '1{s;^;#!/opt/conda/bin/python\n;}' \
+    longQC.py && \
+    chmod +x longQC.py
 
-# install dependency
-RUN conda update -y conda
+### install LongQC's dependency ###
+RUN conda config --add channels conda-forge && \
+    conda config --add channels bioconda && \
+    conda install -y \
+    python=3.9 \
+    numpy \
+    pandas'>=0.24.0' \
+    scipy \
+    jinja2 \
+    h5py \
+    matplotlib'>=2.1.2' \
+    scikit-learn && \
+    conda install -y -c bioconda \
+    edlib \
+    pysam \
+    python-edlib
 
-RUN conda install -y numpy
-RUN conda install -y pandas'>=0.24.0'
-RUN conda install -y scipy
-RUN conda install -y jinja2
-RUN conda install -y h5py
-RUN conda install -y matplotlib'>=2.1.2'
-RUN conda install -y scikit-learn
+### Define PATH ###
+ENV PATH="/root/LongQC:$PATH"
 
-RUN conda install -y -c bioconda pysam
-RUN conda install -y -c bioconda edlib
-RUN conda install -y -c bioconda python-edlib
-
-# change user to "user" defined above
-USER ${USER}
-
-# define a working dir
-WORKDIR $HOME
+### Entry point
+ENTRYPOINT ["longQC.py"]
