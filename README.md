@@ -16,6 +16,9 @@ LongQC was developed to overcome such situations, and it gives you a first insig
 docker image is mainteined, and we recommended running LongQC on the docker. Having said that, if you want to setup manually, kidly follow below steps.
 
 ### 1. Python dependency
+
+### Note: some of below conda packages may not be available for Python 3.8. Try other Python versions such as 3.9 or 3.7.
+
 LongQC was written in python3 and has dependencies for popular python libraries:
 
 * numpy
@@ -31,7 +34,7 @@ Also, it depends on some bioinformatics packages.
 * pysam
 * edlib (with its python wrapper, python-edlib)
 
-Anaconda should be an easier choice. We recommend [anaconda3](https://www.anaconda.com/), then install below dependency using conda.
+Anaconda/miniconda should be an easier choice. We recommend [miniconda3](https://www.anaconda.com/), then install below dependency using conda.
 
 	a) conda install h5py
 	b) conda install -c bioconda pysam
@@ -53,6 +56,7 @@ Argp has to be installed. Using homebrew seems to be easiest.
 
 ## The Docker image
 See the docker file in this repository. All of dependency will be automatically resoleved. I tested the docker image of LongQC on both Linux and Mac.
+Also, many thanks for discussions and suggestions, especially for @gimnec and @grpiccoli!
 
 ### 1. Download Dockerfile
 Download Dockerfile in this repository to your local space. One example is below.
@@ -67,8 +71,20 @@ In the folder you saved Dockerfile above, run the docker command to build a new 
 
 ### 3. Run
 
-	docker run -it --rm -v /path/to/shared_dir/:/data longqc
-Run the LongQC container built by the above command. The container uses `/data` as a default workspace, and the above command mounts `/data` to `shared_dir` in the host.
+	docker run -it \
+	-v YOUR_INPUT_DIR:/input \
+	-v YOUR_OUTPUT_DIR:/output \
+	longqc sampleqc \
+	-x pb-sequel \ **specify a preset and change accordingly.**
+	-p $(nproc) \ **number of process/cores, this uses all of your cores. change accordingly.**
+	-o /output/YOUR_SAMPLE_NAME \ **keep /output as this is binded.**
+	/input/YOUR_INPUT_READ_FILE **keep /input as this is binded.**
+
+Run the LongQC container built by the above command. The command will look like something above, and remove comments between double asterisks before you launch :)
+The container uses `/input` and `/output` as default workspaces, and the above command mount them to YOUR_INPUT_DIR and YOUR_OUTPUT_DIR dirs in the host, respectively. These can be the same dir.
+Also, change `/output/YOUR_SAMPLE_NAME` and `/input/YOUR_INPUT_READ_FILE` accordingly.
+
+Note: on Mac OS, nproc is not available, so replace `-p $(nproc) \` by `-p $(sysctl -n hw.physicalcpu) \`. Or, simply specify number of CPU cores with an interegr (e.g. `-p 20`).
 
 ## The usage of sampleqc
 #### For inpatient persons using RS-II:
