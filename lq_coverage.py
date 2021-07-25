@@ -416,12 +416,18 @@ class LqCoverage:
         if adp5_pos:
             #adp5_pos -> 45 for pb, 61 for 1d, and 120 for 1d2.
             ax1.axvline(x=adp5_pos, linestyle='dashed', linewidth=2, color='red', alpha=0.8) # pacbio
-            ax1.text(adp5_pos, ymax*0.85, r'Length of the adapter')
+            if adp5_pos > 90:
+                ax1.text(adp5_pos, ymax*0.85, r'Length of the adapter', horizontalalignment='right')
+            else:
+                ax1.text(adp5_pos, ymax*0.85, r'Length of the adapter', horizontalalignment='left')
 
         if adp3_pos:
             #adp3_pos -> 45 for pb, 22 for 1d, and 86 for 1d2.
             ax2.axvline(x=adp3_pos, linestyle='dashed', linewidth=2, color='red', alpha=0.8) # pacbio
-            ax2.text(adp3_pos, ymax*0.85, r'Length of the adapter', horizontalalignment='right')
+            if adp3_pos > 90:
+                ax2.text(adp3_pos, ymax*0.85, r'Length of the adapter', horizontalalignment='left')
+            else:
+                ax2.text(adp3_pos, ymax*0.85, r'Length of the adapter', horizontalalignment='right')
 
         if fp:
             plt.savefig(fp, bbox_inches="tight")
@@ -674,22 +680,24 @@ if __name__ == "__main__":
     outf = args.outf
 
     lc = LqCoverage(inf, isTranscript=False, control_filtering=conf)
-    lc.plot_coverage_dist(outf)
     if lc.mode_logn_main:
         print("Mode of LogN mix: %.3f" % lc.mode_logn_main)
         print("Mean of GMM: %.3f" % lc.mean_main)
     else:
         print("Mean of GMM: %.3f" % lc.mean_main)
-    #lc.plot_unmapped_frac_terminal(adp5_pos=61, adp3_pos=30)
-    #lc.plot_qscore_dist()
     plt.rcParams['figure.figsize'] = (7, 7)
     plt.rcParams['pdf.fonttype'] = 42
     plt.rcParams['ps.fonttype'] = 42
-    lc.plot_length_vs_coverage(outf)
+
+    # comment out a plot if needed. not multiple plots in a single file. 
+    #lc.plot_qscore_dist(outf)
+    lc.plot_coverage_dist(outf)
+    #lc.plot_length_vs_coverage(outf)
     #lc.plot_unmapped_frac_terminal(outf)
+
+    # logs of stats.
     print("%% non-sense reads: %.3f" % lc.get_unmapped_med_frac())
     print("%% control reads: %.3f" % lc.get_control_frac())
-
     print("Warnings: ", lc.warnings)
     print("Errors: ", lc.errors)
 
