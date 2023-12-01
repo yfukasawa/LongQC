@@ -54,6 +54,12 @@ Argp has to be installed. Using homebrew seems to be easiest.
 
 	brew install argp-standalone
 
+Note: If you wish to use LongQC on an Apple Silicon ike the M1/M2 chip, you need to add some flags (i.e., arm_neon and aarch64) to make it work. Additionally, ensure that your version of LongQC is 1.2.1 or newer.
+
+	cd /path/to/download
+ 	git clone https://github.com/yfukasawa/LongQC.git
+  	cd LongQC/minimap2-coverage && make arm_neon=1 aarch64=1
+
 ## The Docker image
 See the docker file in this repository. All of dependency will be automatically resoleved. I tested the docker image of LongQC on both Linux and Mac.
 Also, many thanks for discussions and suggestions, especially for @gimnec and @grpiccoli!
