@@ -54,6 +54,12 @@ Argp has to be installed. Using homebrew seems to be easiest.
 
 	brew install argp-standalone
 
+Note: If you wish to use LongQC on an Apple Silicon ike the M1/M2 chip, you need to add some flags (i.e., arm_neon and aarch64) to make it work. Additionally, ensure that your version of LongQC is 1.2.1 or newer.
+
+	cd /path/to/download
+ 	git clone https://github.com/yfukasawa/LongQC.git
+  	cd LongQC/minimap2-coverage && make arm_neon=1 aarch64=1
+
 ## The Docker image
 See the docker file in this repository. All of dependency will be automatically resoleved. I tested the docker image of LongQC on both Linux and Mac.
 Also, many thanks for discussions and suggestions, especially for @gimnec and @grpiccoli!
@@ -75,16 +81,41 @@ In the folder you saved Dockerfile above, run the docker command to build a new 
 	-v YOUR_INPUT_DIR:/input \
 	-v YOUR_OUTPUT_DIR:/output \
 	longqc sampleqc \
-	-x pb-sequel \ **specify a preset and change accordingly.**
-	-p $(nproc) \ **number of process/cores, this uses all of your cores. change accordingly.**
+	-x pb-sequel \                **specify a preset and change accordingly.**
+	-p $(nproc) \                 **number of process/cores, this uses all of your cores. change accordingly.**
 	-o /output/YOUR_SAMPLE_NAME \ **keep /output as this is binded.**
-	/input/YOUR_INPUT_READ_FILE **keep /input as this is binded.**
+	/input/YOUR_INPUT_READ_FILE   **keep /input as this is binded.**
 
 Run the LongQC container built by the above command. The command will look like something above, and remove comments between double asterisks before you launch :)
 The container uses `/input` and `/output` as default workspaces, and the above command mount them to YOUR_INPUT_DIR and YOUR_OUTPUT_DIR dirs in the host, respectively. These can be the same dir.
 Also, change `/output/YOUR_SAMPLE_NAME` and `/input/YOUR_INPUT_READ_FILE` accordingly.
 
-Note: on Mac OS, nproc is not available, so replace `-p $(nproc) \` by `-p $(sysctl -n hw.physicalcpu) \`. Or, simply specify number of CPU cores with an interegr (e.g. `-p 20`).
+#### For Mac users
+Mac users need to be cautious of a few things.
+
+On Mac OS, you cannot use nproc, so instead of `-p $(nproc) \`, use `-p $(sysctl -n hw.physicalcpu) \`. Alternatively, you can state the number of CPU cores using an integer (e.g. `-p 20`).
+
+Furthermore, the original Dockerfile was designed for amd64 architecture CPUs and it's not compatible with new Apple silicon. For now, if you use an M1/M2 chip or any other Arm64 CPU, follow the procedure below.
+
+Download a Dockerfile for the development version.
+
+	wget https://raw.githubusercontent.com/yfukasawa/LongQC/apple-docker/dev.Dockerfile
+
+Build from the downloaded Dockerfile. Use the example below and add -arm64 suffix or something, if necessary.
+
+	docker build -f dev.Dockerfile -t longqc-arm64 .
+
+Run the docker container.
+
+	docker run -it \
+	-v YOUR_INPUT_DIR:/input \
+	-v YOUR_OUTPUT_DIR:/output \
+	longqc-arm64 sampleqc \    **change image name accordingly. see above.**
+	-x pb-sequel \             **specify a preset and change accordingly.**
+	-p $(nproc) \              **number of process/cores, this uses all of your cores. change accordingly.**
+	-o /output/YOUR_SAMPLE_NAME \ **keep /output as this is binded.**
+	/input/YOUR_INPUT_READ_FILE   **keep /input as this is binded.**
+
 
 ## The usage of sampleqc
 #### For inpatient persons using RS-II:
