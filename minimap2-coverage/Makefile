@@ -6,6 +6,7 @@ PROG=		minimap2-coverage sdust
 PROG_EXTRA=	
 LIBS=		-lm -lz -lpthread
 
+
 ifeq ($(arm_neon),)
 ifeq ($(sse2only),)
 	OBJS+=ksw2_extz2_sse41.o ksw2_extd2_sse41.o ksw2_exts2_sse41.o ksw2_extz2_sse2.o ksw2_extd2_sse2.o ksw2_exts2_sse2.o ksw2_dispatch.o
@@ -13,9 +14,13 @@ else
 	OBJS+=ksw2_extz2_sse.o ksw2_extd2_sse.o ksw2_exts2_sse.o
 endif
 else
-    OBJS+=ksw2_extz2_neon.o ksw2_extd2_neon.o ksw2_exts2_neon.o
-    CFLAGS+=-D_FILE_OFFSET_BITS=64 -mfpu=neon -fsigned-char
-    INCLUDES+=-I sse2neon
+	OBJS+=ksw2_extz2_neon.o ksw2_extd2_neon.o ksw2_exts2_neon.o
+	INCLUDES+=-Isse2neon
+ifeq ($(aarch64),)
+	CFLAGS+=-D_FILE_OFFSET_BITS=64 -mfpu=neon -fsigned-char
+else
+	CFLAGS+=-D_FILE_OFFSET_BITS=64 -fsigned-char
+endif
 endif
 
 ifeq  ($(shell uname),Darwin)
