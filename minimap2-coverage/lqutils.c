@@ -11,18 +11,7 @@ KRADIX_SORT_INIT(32, uint32_t, sort_key_32, 4)
 
 // Assumes ascii33
 // nanopore sometimes exceeds Q42, so let's have more.
-/*
-double q2p[] = {
-    1.000000000000000, 0.794328234724000, 0.630957344480000, 0.501187233627000, 0.398107170553000, 0.316227766017000,
-    0.251188643151000, 0.199526231497000, 0.158489319246000, 0.125892541179000, 0.100000000000000, 0.079432823472400,
-    0.063095734448000, 0.050118723362700, 0.039810717055300, 0.031622776601700, 0.025118864315100, 0.019952623149700,
-    0.015848931924600, 0.012589254117900, 0.010000000000000, 0.007943282347240, 0.006309573444800, 0.005011872336270,
-    0.003981071705530, 0.003162277660170, 0.002511886431510, 0.001995262314970, 0.001584893192460, 0.001258925411790,
-    0.001000000000000, 0.000794328234724, 0.000630957344480, 0.000501187233627, 0.000398107170553, 0.000316227766017,
-    0.000251188643151, 0.000199526231497, 0.000158489319246, 0.000125892541179, 0.000100000000000, 0.000079432823472,
-    0.000063095734448,
-};
-*/
+
 double q2p[] = {
     1.000000000000000,0.794328234724281,0.630957344480193,0.501187233627272,0.398107170553497,0.316227766016838,
     0.251188643150958,0.199526231496888,0.158489319246111,0.125892541179417,0.100000000000000,0.079432823472428,
@@ -51,23 +40,17 @@ double q2p[] = {
 double meanQ(char * qual, int length){
     //double a;
     int i; double sum = 0.0;
+    if(length <= 0) return 0.0;  // Prevent division by zero
+    
     for(i=0; i<length; i++){
-        sum += q2p[(int)qual[i] - 33];
+        int qval = (int)qual[i] - 33;
+        // Prevent out-of-bounds access: q2p has 127 elements (0-126)
+        if(qval < 0) qval = 0;
+        if(qval > 126) qval = 126;
+        sum += q2p[qval];
     }
     return -10*log10(sum/length);
 }
-
-/*
-double meanQ(char * qual, int n){
-    double a;
-    int i; double sum = 0.0;
-    for(i=0; i<n; i++){
-        // YF memo: we should use table here. It should be faster.
-        sum += pow(10.0, -1 * (double)((int)qual[i] - 33)/10.0 );
-    }
-    return -10*log10(sum/n);
-}
-*/
 
 int getQV(char * qual, int threshold, int length){
     int i, sum = 0;
@@ -98,14 +81,24 @@ void compute_reliable_region(lq_subcoords_v *v, uint32_t min_cov, lq_subcoords_v
         uint32_t old_cov      = cov;
         uint32_t old_med_cov  = med_cov;
         if (vc.a[j]&1){
-            --cov;
+            // Prevent underflow
+            if(cov > 0) --cov;
             if(vc.a[j]&2){
                 if(vc.a[j]&4){
-                    med_cov -= min_cov;
-                    cov -= (min_cov - 1); //too much culling;
+                    // Prevent underflow (special case)
+                    if(med_cov >= min_cov)
+                        med_cov -= min_cov;
+                    else
+                        med_cov = 0;
+                    if(cov >= min_cov - 1)
+                        cov -= (min_cov - 1);
+                    else
+                        cov = 0;
                 }
-                else
-                    --med_cov;
+                else{
+                    // Prevent underflow
+                    if(med_cov > 0) --med_cov;
+                }
             }
         }
         else {
@@ -125,16 +118,14 @@ void compute_reliable_region(lq_subcoords_v *v, uint32_t min_cov, lq_subcoords_v
             if(old_med_cov < min_cov && med_cov >= min_cov)
                 med_start = vc.a[j]>>3;
         } else if (old_cov >= min_cov && cov < min_cov) {
-            uint32_t len = (vc.a[j]>>3) - start;
-            if (len > 0){
+            if ((vc.a[j]>>3) > start){
                 lq_subcoords_t c;
                 c.start = start; c.end = vc.a[j]>>3;
                 kv_push(lq_subcoords_t, 0, *coords, c);
             }
             // just in case. cov and med_cov and good_cov is not 100% exclusive.
             if (old_med_cov >= min_cov && med_cov < min_cov){
-                uint32_t mlen = (vc.a[j]>>3) - med_start;
-                if(mlen > 0){
+                if((vc.a[j]>>3) > med_start){
                     lq_subcoords_t mc;
                     mc.start = med_start; mc.end = vc.a[j]>>3;
                     kv_push(lq_subcoords_t, 0, *mcoords, mc);
@@ -143,8 +134,7 @@ void compute_reliable_region(lq_subcoords_v *v, uint32_t min_cov, lq_subcoords_v
         } else if (old_med_cov < min_cov && med_cov >= min_cov) {
             med_start = vc.a[j]>>3;
         } else if(old_med_cov >= min_cov && med_cov < min_cov) {
-            uint32_t mlen = (vc.a[j]>>3) - med_start;
-            if(mlen > 0){
+            if((vc.a[j]>>3) > med_start){
                 lq_subcoords_t mc;
                 mc.start = med_start; mc.end = vc.a[j]>>3;
                 kv_push(lq_subcoords_t, 0, *mcoords, mc);
@@ -153,108 +143,6 @@ void compute_reliable_region(lq_subcoords_v *v, uint32_t min_cov, lq_subcoords_v
     }
     kv_destroy(vc);
 }
-
-
-//// so dirty. need more revision
-//void compute_reliable_region(lq_subcoords_v *vc, uint32_t min_cov, lq_region_v *coords, lq_region_v *mcoords, lq_region_v *gcoords)
-//{
-//    int j;
-//    uint32_t start, cov;
-//    uint32_t med_start, med_cov;
-//    uint32_t good_start, good_cov;
-//    start = cov = med_start = med_cov = good_start = good_cov = 0;
-//    
-//    // followed relevant code from miniasm
-//    // the rest part is written in compute_reliable_region()
-//    radix_sort_32(vc->a, vc->a + vc->n);
-//    
-//    for (j = 0, cov = 0; j < vc->n; ++j) {
-//        uint32_t old_cov      = cov;
-//        uint32_t old_med_cov  = med_cov;
-//        uint32_t old_good_cov = good_cov;
-//        if (vc->a[j]&1){
-//            --cov;
-//            if(vc->a[j]&2)
-//                --med_cov;
-//            if(vc->a[j]&4)
-//                --good_cov;
-//        }
-//        else {
-//            ++cov;
-//            if(vc->a[j]&2)
-//                ++med_cov;
-//            if(vc->a[j]&4)
-//                ++good_cov;
-//        }
-//        if (old_cov < min_cov && cov >= min_cov) {
-//            start = vc->a[j]>>3;
-//            // just in case. cov and med_cov and good_cov is not 100% exclusive.
-//            if(old_med_cov < min_cov && med_cov >= min_cov){
-//                med_start = vc->a[j]>>3;
-//                if (old_good_cov < min_cov && good_cov >= min_cov)
-//                    good_start = vc->a[j]>>3;
-//            }
-//        } else if (old_cov >= min_cov && cov < min_cov) {
-//            uint32_t len = (vc->a[j]>>3) - start;
-//            if (len > 0){
-//                lq_subcoords_t c;
-//                c.start = start; c.end = vc->a[j]>>3;
-//                kv_push(lq_subcoords_t, 0, *coords, c);
-//            }
-//            // just in case. cov and med_cov and good_cov is not 100% exclusive.
-//            if (old_med_cov >= min_cov && med_cov < min_cov){
-//                uint32_t mlen = (vc->a[j]>>3) - med_start;
-//                if(mlen > 0){
-//                    lq_subcoords_t mc;
-//                    mc.start = med_start; mc.end = vc->a[j]>>3;
-//                    kv_push(lq_subcoords_t, 0, *mcoords, mc);
-//                }
-//                if(old_good_cov >= min_cov && good_cov < min_cov){
-//                    uint32_t glen = (vc->a[j]>>3) - good_start;
-//                    if(glen > 0){
-//                        lq_subcoords_t gc;
-//                        gc.start = good_start; gc.end = vc->a[j]>>3;
-//                        kv_push(lq_subcoords_t, 0, *gcoords, gc);
-//                    }
-//                }
-//            }
-//        } else if (old_med_cov < min_cov && med_cov >= min_cov) {
-//            med_start = vc->a[j]>>3;
-//            // just in case. med_cov and good_cov is not 100% exclusive.
-//            if (old_good_cov < min_cov && good_cov >= min_cov)
-//                good_start = vc->a[j]>>3;
-//        } else if(old_med_cov >= min_cov && med_cov < min_cov) {
-//            uint32_t mlen = (vc->a[j]>>3) - med_start;
-//            if(mlen > 0){
-//                lq_subcoords_t mc;
-//                mc.start = med_start; mc.end = vc->a[j]>>3;
-//                kv_push(lq_subcoords_t, 0, *mcoords, mc);
-//            }
-//            // just in case. med_cov and good_cov is not 100% exclusive.
-//            if(old_good_cov >= min_cov && good_cov < min_cov){
-//                uint32_t glen = (vc->a[j]>>3) - good_start;
-//                if(glen > 0){
-//                    lq_subcoords_t gc;
-//                    gc.start = good_start; gc.end = vc->a[j]>>3;
-//                    kv_push(lq_subcoords_t, 0, *gcoords, gc);
-//                }
-//            }
-//        } else if (old_good_cov < min_cov && good_cov >= min_cov) {
-//            good_start = vc->a[j]>>3;
-//        } else if (old_good_cov >= min_cov && good_cov < min_cov){
-//            uint32_t glen = (vc->a[j]>>3) - good_start;
-//            if(glen > 0){
-//                lq_subcoords_t gc;
-//                gc.start = good_start; gc.end = vc->a[j]>>3;
-//                kv_push(lq_subcoords_t, 0, *gcoords, gc);
-//            }
-//        }
-//    }
-//}
-
-
-/* End of messy functions*/
-
 
 // cdf of poission is upper regularized gamma function.
 // translate from javascript code (https://github.com/compute-io/gammainc/blob/677b930c1f1b25222368009a52dd4f0a8729d4b5/lib/number.js)

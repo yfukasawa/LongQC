@@ -15,6 +15,10 @@
 #define STOP 1.0e-8
 #define TINY 1.0e-30
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 double meanQ(char * qual, int length);
 int getQV(char * qual, int threshold, int length);
 
