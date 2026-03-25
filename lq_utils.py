@@ -31,26 +31,20 @@ def rgb(r,g,b):
     return [ r/255, g/255, b/255 ]
 
 def get_N50(vals):
-    a = np.array(vals)
-    t = a.sum()/2
-    cnt = 0
-    a[::-1].sort() # this cannot be evaluated properly in for-loop
-    for x in a:
-        cnt += x
-        if cnt >= t: return x
+    a = np.sort(np.array(vals))[::-1]  # 降順ソート
+    cumsum = np.cumsum(a)
+    return a[np.searchsorted(cumsum, cumsum[-1] / 2)]
 
 def get_NXX(vals, target=90):
     a = np.array(vals)
-    t = a.sum() * target/100
-    if target < 0:
-        return vals[0]
-    elif target > 100:
-        return vals[-1]
-    cnt = 0
-    a[::-1].sort() # this cannot be evaluated properly in for-loop
-    for x in a:
-        cnt += x
-        if cnt >= t: return x
+    if target <= 0:
+        return np.max(a)
+    elif target >= 100:
+        return np.min(a)
+    a = np.sort(a)[::-1]  # descending order
+    cumsum = np.cumsum(a)
+    threshold = cumsum[-1] * target / 100
+    return a[np.searchsorted(cumsum, threshold)]
 
 def open_seq_chunk(fn, file_code, is_upper=False, chunk_size=500*1024**2): # default 500MB
     #file_code = guess_format(fn)
