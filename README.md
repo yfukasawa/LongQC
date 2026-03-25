@@ -13,7 +13,7 @@ Long reads from third generation sequencers have high error rate (~15%) and quit
 LongQC was developed to overcome such situations, and it gives you a first insight of your data within a short period of time.
 
 ## Getting started
-docker image is mainteined, and we recommended running LongQC on the docker. Having said that, if you want to setup manually, kidly follow below steps.
+docker image is maintained, and we recommended running LongQC on the docker. Having said that, if you want to setup manually, kindly follow below steps.
 
 ### 1. Python dependency
 
