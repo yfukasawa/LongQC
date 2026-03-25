@@ -1,7 +1,6 @@
 from scipy import special
 from scipy.stats import dgamma
 from scipy.stats import gamma
-from lq_utils    import rgb
 from lq_utils    import rgb, get_N50
 import sys
 import numpy as np

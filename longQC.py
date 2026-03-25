@@ -282,6 +282,7 @@ def command_sample(args):
     pool_res  = {}
     lm = LqMask(os.path.join(path_minimap2, "sdust"), args.out, suffix=suffix, max_n_proc=10 if ncpu > 10 else ncpu)
     lg = LqGC(chunk_size=150)
+    very_low_coverage_mode = False  # Initialize to avoid undefined variable
     if args.adp5:
         num_trim5     = 0
         max_iden_adp5 = 0.0
@@ -293,6 +294,7 @@ def command_sample(args):
 
     # vars for subsampling
     cum_n_seq = 0
+    cum_n_bases = 0  # Track total bases across all chunks
     s_reads   = []
     #sample_random_fastq_list(reads, args.nsample, elist=exclude_seqs)
     chunk_n = 0
@@ -358,8 +360,9 @@ def command_sample(args):
 
         chunk_n += 1
         cum_n_seq += n_seqs
+        cum_n_bases += n_bases
     ### file traverse is over now.
-    logger.info('Input file parsing was finished. #seqs:%d, #bases: %d' % (n_seqs, n_bases))
+    logger.info('Input file parsing was finished. #seqs:%d, #bases: %d' % (cum_n_seq, cum_n_bases))
 
     # wait for completion of DUST analysis
     lm.close_pool()
@@ -848,7 +851,7 @@ def command_sample(args):
             try:
                 os.remove(tempdb_path)
                 logger.info("tmpdb %s was removed." % tempdb_path)
-            except (OSError, e):
+            except OSError as e:
                 logger.error("%s - %s." % (e.filename, e.strerror))
         else:
             logger.warning("tmpdb file %s does not exist. skip removal of this file." % tempdb_path)
@@ -858,7 +861,7 @@ def command_sample(args):
                 try:
                     os.remove(tempdb_short_path)
                     logger.info("tmpdb %s was removed." % tempdb_short_path)
-                except (OSError, e):
+                except OSError as e:
                     logger.error("%s - %s." % (e.filename, e.strerror))
             else:
                 logger.warning("tmpdb file %s does not exist. skip removal of this file." % tempdb_short_path)

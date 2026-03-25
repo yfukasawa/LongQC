@@ -91,7 +91,7 @@ class LqMask:
                 try:
                     os.remove(tf)
                     logger.info("tmp file %s was removed." % tf)
-                except (OSError, e):
+                except OSError as e:
                     logger.error("%s - %s." % (e.filename, e.strerror))
             else:
                 logger.warning("tmp file %s does not exist. skip removal of this file.")

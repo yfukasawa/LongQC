@@ -265,7 +265,7 @@ class LqCoverage:
             self.mu_logn_main = self.mix_model[1][1]
             self.sigma_logn_main = self.mix_model[2][1]
 
-	# edgy case fix.
+        # edgy case fix.
         if self.low_coverage and self.unmapped_frac_med >= LqCoverage.UNMAPPED_FRACTION_THRESHOLD and not self.isTranscript:
             logger.warning("The fraction of zero coverage read is too high %.3f." % self.unmapped_frac_med)
             logger.warning(self.unmapped_frac_med)

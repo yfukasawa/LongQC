@@ -65,7 +65,7 @@ class LqExec:
     def get_stderr(self):
         if not self.proc:
             return None
-        return self.proc.sterr
+        return self.proc.stderr
 
     def get_poll(self):
         return self.proc.poll()
