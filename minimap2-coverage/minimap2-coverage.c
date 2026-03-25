@@ -420,6 +420,7 @@ int main(int argc, char *argv[])
             //printf("[DEBUG] The number of minimisers for %s: %zu\n", ks->name.s, mv.n);
             m_array a;
             a.a = (uint16_t*)calloc(mv.n, sizeof(uint16_t));
+            if(!a.a) { fprintf(stderr, "Error: calloc failed for m_array\n"); exit(1); }
             a.n = mv.n; tot += mv.n;
             kv_push(m_array, 0, m_cnts, a);
             kfree(km, mv.a);
@@ -433,12 +434,17 @@ int main(int argc, char *argv[])
     // coverage counter
     // YF memo: each thread access different member (read), and afaik two threads won't access the same one simutaneously.
     uint64_t *lambdas;  lambdas  = (uint64_t*) calloc(m_cnts.n, sizeof(uint64_t)); // chain coverage
+    if(!lambdas) { fprintf(stderr, "Error: calloc failed for lambdas\n"); exit(1); }
     uint64_t *lambdas2; lambdas2 = (uint64_t*) calloc(m_cnts.n, sizeof(uint64_t)); // good chain coverage
+    if(!lambdas2) { fprintf(stderr, "Error: calloc failed for lambdas2\n"); exit(1); }
     float *avg_ks;        avg_ks = (float*) calloc(m_cnts.n, sizeof(float));
+    if(!avg_ks) { fprintf(stderr, "Error: calloc failed for avg_ks\n"); exit(1); }
     lq_subcoords_v **ovlp_coords;
     ovlp_coords = (lq_subcoords_v**) malloc(m_cnts.n * sizeof(lq_subcoords_v*));
+    if(!ovlp_coords) { fprintf(stderr, "Error: malloc failed for ovlp_coords\n"); exit(1); }
     for(i=0; i<m_cnts.n; ++i){
         ovlp_coords[i] = (lq_subcoords_v *)malloc(sizeof(lq_subcoords_v));
+        if(!ovlp_coords[i]) { fprintf(stderr, "Error: malloc failed for ovlp_coords[%d]\n", i); exit(1); }
         kv_init(*ovlp_coords[i]);
         kv_resize(lq_subcoords_t, 0, *ovlp_coords[i], buf); //YF memo: make some buffer to avoid memory fragmentation
     }
@@ -460,6 +466,12 @@ int main(int argc, char *argv[])
     if(a.args[1] == NULL){
         free(lambdas);
         free(lambdas2);
+        // Free ovlp_coords properly
+        for(i=0; i<m_cnts.n; ++i){
+            if(ovlp_coords[i]->n > 0)
+                kv_destroy(*ovlp_coords[i]);
+            free(ovlp_coords[i]);
+        }
         free(ovlp_coords);
         free(avg_ks);
         mm_idx_reader_close(r); // close the index reader
@@ -550,56 +562,86 @@ int main(int argc, char *argv[])
         
         tot_m += v->n; tot_m_cnt += mv.n;
         int32_t n_match = 0; double div = 0.0;
-        uint32_t sum = 0.0;
+        double sum = 0.0;
         for(j=0; j<mv.n; j++){
             sum += mv.a[j];
         }
         
-        sum /= mv.n;
-        for(j=0; j<mv.n; j++){
-            if(mv.a[j] > sum) n_match++;
+        if(mv.n > 0) {
+            sum /= mv.n;
+            for(j=0; j<mv.n; j++){
+                if(mv.a[j] > sum) n_match++;
+            }
+            div = n_match > 0 ? logf((float)mv.n / n_match) / avg_ks[i] : 1.0;
+        } else {
+            div = 1.0;
         }
-        //printf("[DEBUG] ave. %d, nmatch %d, %.3f\n", sum, n_match, logf((float)mv.n / n_match));
-        div = n_match > 0 ? logf((float)mv.n / n_match) / avg_ks[i] : 1.0;
+        //printf("[DEBUG] ave. %f, nmatch %d, %.3f\n", sum, n_match, div);
         
         compute_reliable_region(v, fopt.min_coverage, &regs, &mregs);
         
         if(regs.n > 0){
             uint32_t tot = 0;
-            char *coords; coords = (char *) malloc(sizeof(char) * (66 *v->n)); coords[0] = '\0';
+            // Prevent integer overflow: check v->n before multiplication
+            size_t coord_size = (v->n > SIZE_MAX/100) ? SIZE_MAX : (100 * v->n + 1);
+            char *coords; coords = (char *) malloc(sizeof(char) * coord_size);
+            if(!coords) { fprintf(stderr, "Error: malloc failed\n"); exit(1); }
+            coords[0] = '\0';
+            char *coords_ptr = coords;  // Track position for safe concatenation
             for(j=0; j<regs.n; j++){
-                if(j>0)
-                    strcat(coords, ",");
-                char c[66] = {'\0'}; sprintf(c, "%d-%d", regs.a[j].start, regs.a[j].end);
-                strcat(coords, c);
+                if(j>0) {
+                    size_t remaining = coord_size - (coords_ptr - coords);
+                    if(remaining > 1) { *coords_ptr++ = ','; *coords_ptr = '\0'; }
+                }
+                // Use snprintf for safety
+                int written = snprintf(coords_ptr, coord_size - (coords_ptr - coords), 
+                                       "%u-%u", regs.a[j].start, regs.a[j].end);
+                if(written > 0 && (size_t)written < coord_size - (coords_ptr - coords))
+                    coords_ptr += written;
                 tot += regs.a[j].end - regs.a[j].start;
             }
             if (mregs.n > 0){
-                char *mcoords; mcoords = (char *) malloc(sizeof(char) * (66 *v->n)); mcoords[0] = '\0';
+                size_t mcoord_size = (v->n > SIZE_MAX/100) ? SIZE_MAX : (100 * v->n + 1);
+                char *mcoords; mcoords = (char *) malloc(sizeof(char) * mcoord_size);
+                if(!mcoords) { fprintf(stderr, "Error: malloc failed\n"); exit(1); }
+                mcoords[0] = '\0';
+                char *mcoords_ptr = mcoords;
                 for(k=0; k<mregs.n; k++){
-                    if(k>0)
-                        strcat(mcoords, ",");
-                    char mc[66] = {'\0'}; sprintf(mc, "%d-%d", mregs.a[k].start, mregs.a[k].end);
-                    strcat(mcoords, mc);
+                    if(k>0) {
+                        size_t remaining = mcoord_size - (mcoords_ptr - mcoords);
+                        if(remaining > 1) { *mcoords_ptr++ = ','; *mcoords_ptr = '\0'; }
+                    }
+                    int written = snprintf(mcoords_ptr, mcoord_size - (mcoords_ptr - mcoords),
+                                          "%u-%u", mregs.a[k].start, mregs.a[k].end);
+                    if(written > 0 && (size_t)written < mcoord_size - (mcoords_ptr - mcoords))
+                        mcoords_ptr += written;
                 }
+                
+                double coverage_ratio = tot > 0 ? (double) lambdas[i]/tot : 0.0;
+                double coverage2_ratio = tot > 0 ? (double) lambdas2[i]/tot : 0.0;
                 
                 if(a.filter_flag){
                     printf("%s\t%d\t%"PRIu64"\t%s\t%s\t%.3f\t%.3f\t%.3f\t0.0\n", ks->name.s, ks->seq.l, lambdas[i],
                            coords, mcoords, (double) tot/ks->seq.l, meanQ(ks->qual.s, ks->qual.l), div);
                 } else {
                     printf("%s\t%d\t%"PRIu64"\t%s\t%s\t%.3f\t%.3f\t%.3f\t%.3f\n", ks->name.s, ks->seq.l, lambdas[i],
-                           coords, mcoords, (double) lambdas[i]/tot, meanQ(ks->qual.s, ks->qual.l), div, (double) lambdas2[i]/tot);
+                           coords, mcoords, coverage_ratio, meanQ(ks->qual.s, ks->qual.l), div, coverage2_ratio);
                 }
+                free(mcoords);
                 
             } else {
+                double coverage_ratio = tot > 0 ? (double) lambdas[i]/tot : 0.0;
+                double coverage2_ratio = tot > 0 ? (double) lambdas2[i]/tot : 0.0;
+                
                 if(a.filter_flag){
                     printf("%s\t%d\t%"PRIu64"\t%s\t0\t%.3f\t%.3f\t%.3f\t0.0\n", ks->name.s, ks->seq.l, lambdas[i],
                            coords, (double) tot/ks->seq.l, meanQ(ks->qual.s, ks->qual.l), div);
                 } else {
                     printf("%s\t%d\t%"PRIu64"\t%s\t0\t%.3f\t%.3f\t%.3f\t%.3f\n", ks->name.s, ks->seq.l, lambdas[i],
-                           coords, (double) lambdas[i]/tot, meanQ(ks->qual.s, ks->qual.l), div, (double) lambdas2[i]/tot);
+                           coords, coverage_ratio, meanQ(ks->qual.s, ks->qual.l), div, coverage2_ratio);
                 }
             }
+            free(coords);
         } else {
             printf("%s\t%d\t%"PRIu64"\t0\t0\t0.0\t%.3f\t%.3f\t0.0\n", ks->name.s, ks->seq.l, lambdas[i], meanQ(ks->qual.s, ks->qual.l), div);
         }
@@ -619,113 +661,16 @@ int main(int argc, char *argv[])
     kseq_destroy(ks);
     mm_idx_reader_close(r); // close the index reader
     gzclose(f);
-    
-//    // open query file for reading; you may use your favorite FASTA/Q parser
-//    f = gzopen(a.args[1], "r");
-//    assert(f);
-//    ks = kseq_init(f);
-//    i = 0;
-//    uint64_t tot_m, tot_m_cnt;
-//    tot_m = tot_m_cnt = 0; //debug
-//    while (kseq_read(ks) >= 0) { // each kseq_read() call reads one query sequence
-//        lq_subcoords_v regs  = {0,0,0};
-//        lq_subcoords_v mregs = {0,0,0};
-//        lq_subcoords_v gregs = {0,0,0};
-//        lq_subcoords_v* v = ovlp_coords[i];
-//        m_array mv = m_cnts.a[i];
-//        tot_m += v->m; tot_m_cnt += mv.n;
-//        int32_t n_match = 0; double div = 0.0;
-//        uint32_t sum = 0.0;
-//        //fprintf(stderr, "debug-match-cnt %s: ", ks->name.s);
-//        for(j=0; j<mv.n; j++){
-//            sum += mv.a[j];
-//        }
-//        sum /= mv.n;
-//        for(j=0; j<mv.n; j++){
-//            if(mv.a[j] > sum) n_match++;
-//            //fprintf(stderr, "%d, ", mv->a[j]);
-//        }
-//        //fprintf(stderr, "ave. %d, nmatch %d\n", sum, n_match);
-//        div = n_match > 0 ? logf((float)mv.n / n_match) / avg_ks[i] : 1.0;
-//        
-//        compute_reliable_region(v, fopt.min_coverage, &regs, &mregs, &gregs);
-//        
-//        if(regs.n > 0){
-//            uint32_t tot = 0;
-//            char *coords; coords = (char *) malloc(sizeof(char) * (66 *v->n)); coords[0] = '\0';
-//            for(j=0; j<regs.n; j++){
-//                if(j>0)
-//                    strcat(coords, ",");
-//                char c[66] = {'\0'}; sprintf(c, "%d-%d", regs.a[j].start, regs.a[j].end);
-//                strcat(coords, c);
-//                tot += regs.a[j].end - regs.a[j].start;
-//            }
-//            if (mregs.n > 0){
-//                char *mcoords; mcoords = (char *) malloc(sizeof(char) * (66 *v->n)); mcoords[0] = '\0';
-//                for(k=0; k<mregs.n; k++){
-//                    if(k>0)
-//                        strcat(mcoords, ",");
-//                    char mc[66] = {'\0'}; sprintf(mc, "%d-%d", mregs.a[k].start, mregs.a[k].end);
-//                    strcat(mcoords, mc);
-//                }
-//                if (gregs.n > 0){
-//                    char *gcoords; gcoords = (char *) malloc(sizeof(char) * (66 *v->n)); gcoords[0] = '\0';
-//                    for(l=0; l<gregs.n; l++){
-//                        if(l>0)
-//                            strcat(gcoords, ",");
-//                        char gc[66] = {'\0'}; sprintf(gc, "%d-%d", gregs.a[l].start, gregs.a[l].end);
-//                        strcat(gcoords, gc);
-//                    }
-//                    if(a.filter_flag){
-//                        printf("%s\t%d\t%"PRIu64"\t%s\t%s\t%s\t%.3f\t%.3f\t%.3f\t0.0\n", ks->name.s, ks->seq.l, lambdas[i],
-//                               coords, mcoords, gcoords, (double) tot/ks->seq.l, meanQ(ks->qual.s, ks->qual.l), div);
-//                    } else {
-//                        printf("%s\t%d\t%"PRIu64"\t%s\t%s\t%s\t%.3f\t%.3f\t%.3f\t%.3f\n", ks->name.s, ks->seq.l, lambdas[i],
-//                               coords, mcoords, gcoords, (double) lambdas[i]/tot, meanQ(ks->qual.s, ks->qual.l), div, (double) lambdas2[i]/tot);
-//                    }
-//                } else {
-//                    if(a.filter_flag){
-//                        printf("%s\t%d\t%"PRIu64"\t%s\t%s\t0\t%.3f\t%.3f\t%.3f\t0.0\n", ks->name.s, ks->seq.l, lambdas[i],
-//                               coords, mcoords, (double) tot/ks->seq.l, meanQ(ks->qual.s, ks->qual.l), div);
-//                    } else {
-//                        printf("%s\t%d\t%"PRIu64"\t%s\t%s\t0\t%.3f\t%.3f\t%.3f\t%.3f\n", ks->name.s, ks->seq.l, lambdas[i],
-//                               coords, mcoords, (double) lambdas[i]/tot, meanQ(ks->qual.s, ks->qual.l), div, (double) lambdas2[i]/tot);
-//                    }
-//                }
-//            } else {
-//                if(a.filter_flag){
-//                    printf("%s\t%d\t%"PRIu64"\t%s\t0\t0\t%.3f\t%.3f\t%.3f\t0.0\n", ks->name.s, ks->seq.l, lambdas[i],
-//                           coords, (double) tot/ks->seq.l, meanQ(ks->qual.s, ks->qual.l), div);
-//                } else {
-//                    printf("%s\t%d\t%"PRIu64"\t%s\t0\t0\t%.3f\t%.3f\t%.3f\t%.3f\n", ks->name.s, ks->seq.l, lambdas[i],
-//                           coords, (double) lambdas[i]/tot, meanQ(ks->qual.s, ks->qual.l), div, (double) lambdas2[i]/tot);
-//                }
-//            }
-//        } else {
-//            printf("%s\t%d\t%"PRIu64"\t0\t0\t0\t0.0\t%.3f\t%.3f\t0.0\n", ks->name.s, ks->seq.l, lambdas[i], meanQ(ks->qual.s, ks->qual.l), div);
-//        }
-//        if(regs.n > 0)
-//            kv_destroy(regs);
-//        if(mregs.n > 0)
-//            kv_destroy(mregs);
-//        if(gregs.n > 0)
-//            kv_destroy(gregs);
-//        if(v->n > 0)
-//            kv_destroy(*v);
-//        free(v);
-//        
-//        if(mv.n>0)
-//            free(mv.a);
-//        i++;
-//    }
-//    printf("[DEBUG] total array size for coords: %"PRIu64", total array size for cnt: %"PRIu64"\n", tot_m, tot_m_cnt);
-//    kseq_destroy(ks);
-//    mm_idx_reader_close(r); // close the index reader
-//    gzclose(f);
-    
+        
     free(lambdas);
     free(lambdas2);
     free(m_cnts.a);
+    // Free ovlp_coords properly
+    for(i=0; i<m_cnts.n; ++i){
+        if(ovlp_coords[i]->n > 0)
+            kv_destroy(*ovlp_coords[i]);
+        free(ovlp_coords[i]);
+    }
     free(ovlp_coords);
     free(avg_ks);
 
